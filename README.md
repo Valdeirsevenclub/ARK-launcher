@@ -33,7 +33,8 @@ It speaks **English, Finnish, German, Spanish, French, Portuguese, Russian, Swed
 Download the latest signed APK from the
 [**Releases**](https://github.com/jrs8205/ARK-launcher/releases/latest) page and open it on
 your device to install. To update, install the newer APK from the same page (Settings ▸ Updates ▸
-"Check for updates" opens it), or let Obtainium do it for you (below).
+"Check for updates" opens it), or let Obtainium do it for you (below). Every release is also
+mirrored on [**SourceForge**](https://sourceforge.net/projects/ark-launcher/).
 
 Requires **Android 11 (API 30)** or newer.
 
