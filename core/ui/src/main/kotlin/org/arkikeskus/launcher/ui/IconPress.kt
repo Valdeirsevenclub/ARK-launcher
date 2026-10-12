@@ -1,6 +1,9 @@
 package org.arkikeskus.launcher.ui
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 
@@ -21,4 +24,59 @@ object IconPress {
 
     fun startsDrag(position: Offset, origin: Offset, thresholdPx: Float): Boolean =
         (position - origin).getDistance() > thresholdPx
+}
+
+/** How the press phase of an icon touch ended, before any long-press pickup ([awaitIconPress]). */
+sealed interface IconPressOutcome {
+    /** A clean finger-up on the icon that nothing else claimed: launch / open. */
+    data object Tap : IconPressOutcome
+
+    /**
+     * The press is no longer the icon's: a parent took the gesture (the root swipe-up detector in
+     * the Initial pass, the pager past its slop — the Compose counterpart of ACTION_CANCEL), the
+     * finger left the icon (bounds + slop), or it vanished.
+     */
+    data object Cancelled : IconPressOutcome
+
+    /** The finger stayed on the icon for the long-press timeout; [position] is where it is now. */
+    data class Held(val position: Offset) : IconPressOutcome
+}
+
+/**
+ * The press phase of a home icon, folder or shortcut after its (already consumed) [down].
+ *
+ * The moves are deliberately left unconsumed until the hold completes: a swipe that starts on an
+ * icon then belongs to whoever claims it past the slop — the root swipe-up/-down detector or the
+ * pager — exactly as on empty space, and the icon sees that claim as [IconPressOutcome.Cancelled].
+ * Consuming them instead made a quick flick that lifted inside the icon's cell count as a tap
+ * (the drawer opened AND the app underneath launched) and delayed a sideways page swipe until
+ * the finger had left the cell. A hold still tolerates a roll anywhere on the icon.
+ */
+suspend fun AwaitPointerEventScope.awaitIconPress(down: PointerInputChange): IconPressOutcome {
+    val slop = viewConfiguration.touchSlop
+    var holdPos = down.position
+    val ended = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+        var ended: IconPressOutcome? = null
+        while (ended == null) {
+            val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+            ended = when {
+                c == null || c.isConsumed || !IconPress.staysOnIcon(c.position, size, slop) ->
+                    IconPressOutcome.Cancelled
+                !c.pressed -> {
+                    c.consume()
+                    IconPressOutcome.Tap
+                }
+                else -> {
+                    holdPos = c.position
+                    // A parent that claims the gesture in the Main pass (the pager, past its slop)
+                    // consumes AFTER this child — only the Final pass shows it, as in Compose's own
+                    // tap and drag detectors.
+                    awaitPointerEvent(PointerEventPass.Final)
+                    if (c.isConsumed) IconPressOutcome.Cancelled else null
+                }
+            }
+        }
+        ended
+    }
+    return ended ?: IconPressOutcome.Held(holdPos)
 }

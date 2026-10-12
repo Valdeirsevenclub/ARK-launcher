@@ -93,6 +93,8 @@ import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.ui.DragSource
 import org.arkikeskus.launcher.ui.HomeDragController
 import org.arkikeskus.launcher.ui.IconPress
+import org.arkikeskus.launcher.ui.IconPressOutcome
+import org.arkikeskus.launcher.ui.awaitIconPress
 import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.AppLabel
 import org.arkikeskus.launcher.ui.component.LocalAppLabelLines
@@ -498,25 +500,12 @@ internal fun Workspace(
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             down.consume()
-            val slop = viewConfiguration.touchSlop
-            var tapped = false
-            var swiped = false
-            // Where the finger is when the hold completes — the lift starts there, not at the down
-            // point: the hold tolerates a roll across the icon.
-            var holdPos = down.position
-            withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                while (true) {
-                    val ev = awaitPointerEvent()
-                    val c = ev.changes.firstOrNull { it.id == down.id }
-                    if (c == null) { swiped = true; return@withTimeoutOrNull }
-                    c.consume()
-                    if (!c.pressed) { tapped = true; return@withTimeoutOrNull }
-                    if (!IconPress.staysOnIcon(c.position, size, slop)) { swiped = true; return@withTimeoutOrNull }
-                    holdPos = c.position
-                }
-            }
-            if (tapped) { onTap(); return@awaitEachGesture }
-            if (swiped) return@awaitEachGesture
+            // Shared press phase (tap / yield to a claimed swipe / hold). The lift starts where the
+            // finger is when the hold completes — the hold tolerates a roll across the icon.
+            val press = awaitIconPress(down)
+            if (press is IconPressOutcome.Tap) { onTap(); return@awaitEachGesture }
+            if (press !is IconPressOutcome.Held) return@awaitEachGesture
+            val holdPos = press.position
             // Desktop locked: long-press does nothing (no move/remove); tap (above) still opens.
             if (locked) return@awaitEachGesture
             // PICK UP — refused while another finger holds a lift (see HomeDragController.claim).
@@ -903,47 +892,22 @@ internal fun Workspace(
                                     ) {
                                         awaitEachGesture {
                                             val down = awaitFirstDown(requireUnconsumed = false)
-                                            // Claim the gesture immediately: an icon touch belongs
-                                            // to the icon, so the pager and the page swipes can
-                                            // never steal it (not even from finger jitter during the
-                                            // long-press hold). Swipes for drawer/notifications start
-                                            // on empty space.
+                                            // Claim the DOWN (the empty-area long-press detector
+                                            // needs an unconsumed one) but not the moves: a swipe
+                                            // that starts on an icon belongs to whoever claims it
+                                            // past the slop — the root drawer/notification swipe or
+                                            // the pager — exactly as on empty space (awaitIconPress).
                                             down.consume()
-                                            val slop = viewConfiguration.touchSlop
-                                            // Quick up = tap; movement = abandon (drag needs a
-                                            // long-press); still hold = pick up to drag.
-                                            var tapped = false
-                                            var swiped = false
-                                            // The lift starts where the finger is when the hold
-                                            // completes (the hold tolerates a roll across the icon).
-                                            var holdPos = down.position
-                                            withTimeoutOrNull(
-                                                viewConfiguration.longPressTimeoutMillis,
-                                            ) {
-                                                while (true) {
-                                                    val ev = awaitPointerEvent()
-                                                    val c = ev.changes.firstOrNull { it.id == down.id }
-                                                    if (c == null) {
-                                                        swiped = true
-                                                        return@withTimeoutOrNull
-                                                    }
-                                                    c.consume()
-                                                    if (!c.pressed) {
-                                                        tapped = true
-                                                        return@withTimeoutOrNull
-                                                    }
-                                                    if (!IconPress.staysOnIcon(c.position, size, slop)) {
-                                                        swiped = true
-                                                        return@withTimeoutOrNull
-                                                    }
-                                                    holdPos = c.position
-                                                }
-                                            }
-                                            if (tapped) {
+                                            // Quick up = tap; a claimed swipe or leaving the icon =
+                                            // abandon; still hold = pick up, lifting from where the
+                                            // finger is when the hold completes.
+                                            val press = awaitIconPress(down)
+                                            if (press is IconPressOutcome.Tap) {
                                                 onAppClick(placed.app)
                                                 return@awaitEachGesture
                                             }
-                                            if (swiped) return@awaitEachGesture
+                                            if (press !is IconPressOutcome.Held) return@awaitEachGesture
+                                            val holdPos = press.position
                                             // Desktop locked: long-press does nothing (no menu, no drag); tap still launches.
                                             if (locked) return@awaitEachGesture
                                             // PICK UP — lift into the shared controller (not yet
