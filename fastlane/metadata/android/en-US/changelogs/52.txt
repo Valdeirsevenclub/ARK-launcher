@@ -1,0 +1,2 @@
+Fixed
+- A swipe that starts on a home icon no longer launches that app: a quick swipe up only opens the app list, and a sideways swipe turns the page right away instead of waiting for the finger to leave the icon.
