@@ -1,6 +1,7 @@
 # ARK-launcher
 
 [![Latest release](https://img.shields.io/github/v/release/jrs8205/ARK-launcher?sort=semver)](https://github.com/jrs8205/ARK-launcher/releases/latest)
+[![F-Droid](https://img.shields.io/f-droid/v/org.arkikeskus.launcher)](https://f-droid.org/packages/org.arkikeskus.launcher/)
 [![License: Apache-2.0](https://img.shields.io/github/license/jrs8205/ARK-launcher)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/jrs8205/ARK-launcher/total)](https://github.com/jrs8205/ARK-launcher/releases)
 [![Built with Jetpack Compose](https://img.shields.io/badge/Built%20with-Jetpack%20Compose-4285F4)](https://developer.android.com/jetpack/compose)
@@ -35,6 +36,10 @@ Download the latest signed APK from the
 your device to install. To update, install the newer APK from the same page (Settings ▸ Updates ▸
 "Check for updates" opens it), or let Obtainium do it for you (below). Every release is also
 mirrored on [**SourceForge**](https://sourceforge.net/projects/ark-launcher/).
+
+ARK-launcher is also on [**F-Droid**](https://f-droid.org/packages/org.arkikeskus.launcher/).
+F-Droid builds it from source and ships the same signed APK as GitHub, so you can switch between
+them without reinstalling. New versions reach F-Droid a few days after GitHub.
 
 Requires **Android 11 (API 30)** or newer.
 
@@ -77,8 +82,8 @@ the app: **Settings ▸ Feedback**.
   Long-press and continue dragging to move a widget; hold at a screen edge to change pages.
   Resize handles show the footprint and respect the widget's size limits; compatible widgets can
   stretch to full width or be reconfigured. Collection widgets (e.g. chat lists) scroll in place.
-  Built-in clock, battery and notification widgets adapt to their size and offer translucent or
-  themed backgrounds in Home screen settings.
+  Built-in clock (with the next event, alarm and optional weather), battery and notification
+  widgets adapt to their size and offer translucent or themed backgrounds in Home screen settings.
 - **Folders** on the home screen and inside the drawer.
 - **Notification dots / badges** (via a notification-listener service; dot or Nova-style count).
 - **People widget**: messages, missed calls and mail grouped by person as tiles, with optional
@@ -86,7 +91,9 @@ the app: **Settings ▸ Feedback**.
   set times. Android notifications, sounds and pop-ups remain active; new messages from pinned
   people, missed calls and recognized one-time codes bypass the batch.
 - **Page menu**: add a page to the left or right, set the home page, remove an empty page.
-- **Material You themed icons** (monochrome, on supported Android versions).
+- **Material You themed icons** (monochrome, on supported Android versions) and third-party
+  **[icon packs](https://github.com/jrs8205/ARK-launcher/wiki/Icon-Packs)**.
+- Optional **themed status bar** with the clock, status indicators and notification icons.
 - **Configurable gestures:** swipe up → app drawer, swipe down → notifications, and a configurable
   **left-edge swipe** that launches an app of your choice.
 - **Customizable look** — adjustable app-label **text size** and **colour**, **one- or two-line
@@ -130,7 +137,7 @@ Requirements: `minSdk 30`.
 ## Project layout
 
 - `app` — the single Activity, manifest HOME intent filter, DI entry point, the AppWidgetHost.
-- `core/*` — `model`, `common`, `data` (Room/DataStore/repositories + search providers + backup),
+- `core/*` — `model`, `data` (Room/DataStore/repositories + search providers + backup),
   `ui` (shared Compose components, popups, the expressive theme), `designsystem`, `launcher`.
 - `feature/*` — `home` (workspace + dock + widgets), `appdrawer`, `settings`, `backup`.
 
