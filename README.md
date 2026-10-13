@@ -2,6 +2,9 @@
 
 [![Latest release](https://img.shields.io/github/v/release/jrs8205/ARK-launcher?sort=semver)](https://github.com/jrs8205/ARK-launcher/releases/latest)
 [![F-Droid](https://img.shields.io/f-droid/v/org.arkikeskus.launcher)](https://f-droid.org/packages/org.arkikeskus.launcher/)
+[![Aptoide](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fws75.aptoide.com%2Fapi%2F7%2Fapp%2FgetMeta%3Fpackage_name%3Dorg.arkikeskus.launcher&query=%24.data.file.vername&label=Aptoide&prefix=v)](https://ark-launcher.en.aptoide.com/app)
+[![APKPure](https://img.shields.io/badge/APKPure-available-blue)](https://apkpure.com/p/org.arkikeskus.launcher)
+[![SourceForge](https://img.shields.io/badge/SourceForge-mirror-blue)](https://sourceforge.net/projects/ark-launcher/)
 [![License: Apache-2.0](https://img.shields.io/github/license/jrs8205/ARK-launcher)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/jrs8205/ARK-launcher/total)](https://github.com/jrs8205/ARK-launcher/releases)
 [![Built with Jetpack Compose](https://img.shields.io/badge/Built%20with-Jetpack%20Compose-4285F4)](https://developer.android.com/jetpack/compose)
