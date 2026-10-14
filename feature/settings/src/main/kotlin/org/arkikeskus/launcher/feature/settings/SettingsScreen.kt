@@ -105,6 +105,7 @@ fun SettingsScreen(
     var showLeftSwipePicker by remember { mutableStateOf(false) }
     var showIconPackPicker by remember { mutableStateOf(false) }
     var showCountStylePicker by remember { mutableStateOf(false) }
+    var showHomeMarkerPicker by remember { mutableStateOf(false) }
     var showPeoplePrivacyPicker by remember { mutableStateOf(false) }
     var showBatchTimesEditor by remember { mutableStateOf(false) }
     var showBackup by remember { mutableStateOf(false) }
@@ -223,6 +224,17 @@ fun SettingsScreen(
                 SwitchRow(stringResource(R.string.settings_show_labels), s.showHomeLabels, viewModel::setShowHomeLabels)
                 SwitchRow(stringResource(R.string.settings_two_line_labels), s.twoLineHomeLabels, viewModel::setTwoLineHomeLabels)
                 SwitchRow(stringResource(R.string.settings_page_indicator), s.showPageIndicator, viewModel::setShowPageIndicator)
+                if (s.showPageIndicator) {
+                    ExpressiveActionRow(
+                        label = stringResource(R.string.settings_home_page_marker),
+                        description = stringResource(
+                            when (s.homePageMarker) {
+                                LauncherSettings.MARKER_HOUSE -> R.string.settings_home_page_marker_house
+                                else -> R.string.settings_home_page_marker_ring
+                            },
+                        ),
+                    ) { showHomeMarkerPicker = true }
+                }
                 SwitchRow(stringResource(R.string.settings_lock_desktop), s.desktopLocked, viewModel::setDesktopLocked)
                 SwitchRow(
                     stringResource(R.string.settings_hide_status_bar),
@@ -404,6 +416,21 @@ fun SettingsScreen(
                     showIconPackPicker = false
                 },
                 onDismiss = { showIconPackPicker = false },
+            )
+        }
+        if (showHomeMarkerPicker) {
+            ChoicePicker(
+                title = R.string.settings_home_page_marker,
+                options = listOf(
+                    LauncherSettings.MARKER_RING to R.string.settings_home_page_marker_ring,
+                    LauncherSettings.MARKER_HOUSE to R.string.settings_home_page_marker_house,
+                ),
+                selected = s.homePageMarker,
+                onPick = {
+                    viewModel.setHomePageMarker(it)
+                    showHomeMarkerPicker = false
+                },
+                onDismiss = { showHomeMarkerPicker = false },
             )
         }
         if (showCountStylePicker) {

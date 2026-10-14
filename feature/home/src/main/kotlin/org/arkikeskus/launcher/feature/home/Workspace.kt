@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -88,12 +89,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.arkikeskus.launcher.model.AppItem
+import org.arkikeskus.launcher.model.LauncherSettings
 import org.arkikeskus.launcher.data.ReorderPlanner
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.ui.DragSource
 import org.arkikeskus.launcher.ui.HomeDragController
 import org.arkikeskus.launcher.ui.IconPress
 import org.arkikeskus.launcher.ui.IconPressOutcome
+import org.arkikeskus.launcher.ui.LauncherIcons
 import org.arkikeskus.launcher.ui.awaitIconPress
 import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.AppLabel
@@ -133,6 +136,7 @@ internal fun Workspace(
     showLabels: Boolean,
     labelColor: Color = Color.White,
     showPageIndicator: Boolean,
+    homePageMarker: String = LauncherSettings.MARKER_RING,
     locked: Boolean,
     homeSignals: Flow<Boolean>,
     /** The page HOME returns to and the launcher opens on; null until settings have been read. */
@@ -1389,6 +1393,7 @@ internal fun Workspace(
                     count = pageCount,
                     current = pagerState.currentPage,
                     home = homeIndex,
+                    homeMarker = homePageMarker,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
@@ -1728,22 +1733,44 @@ internal fun android.view.View.containsScrollableCollection(): Boolean = when (t
     else -> false
 }
 
+internal const val PAGE_DOT_TAG = "page_dot"
+internal const val PAGE_DOT_HOUSE_TAG = "page_dot_house"
+
+/** The page dots. The home page is marked so the page HOME returns to is visible at a glance: a ring
+ *  around its dot, or (LauncherSettings.MARKER_HOUSE) a house glyph in place of the dot. Either way
+ *  it takes the current/inactive colour like the plain dots. */
 @Composable
-private fun PageDots(count: Int, current: Int, home: Int, modifier: Modifier = Modifier) {
+internal fun PageDots(
+    count: Int,
+    current: Int,
+    home: Int,
+    homeMarker: String,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         repeat(count) { index ->
-            // The home page's dot wears a ring, so the page HOME returns to is visible at a glance.
             val color = if (index == current) Color.White else Color.White.copy(alpha = 0.4f)
-            Box(
-                modifier = Modifier
-                    .size(if (index == home) 9.dp else 7.dp)
-                    .then(if (index == home) Modifier.border(1.5.dp, color, CircleShape).padding(2.dp) else Modifier)
-                    .background(color = color, shape = CircleShape),
-            )
+            val isHome = index == home
+            if (isHome && homeMarker == LauncherSettings.MARKER_HOUSE) {
+                Icon(
+                    painter = painterResource(LauncherIcons.Home),
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(13.dp).testTag(PAGE_DOT_HOUSE_TAG),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(if (isHome) 9.dp else 7.dp)
+                        .then(if (isHome) Modifier.border(1.5.dp, color, CircleShape).padding(2.dp) else Modifier)
+                        .background(color = color, shape = CircleShape)
+                        .testTag(PAGE_DOT_TAG),
+                )
+            }
         }
     }
 }

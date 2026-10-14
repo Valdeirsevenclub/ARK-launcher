@@ -385,6 +385,33 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `homePageMarker defaults to ring and round-trips`() = runTest {
+        val repo = newRepository()
+        assertThat(repo.settings.first().homePageMarker).isEqualTo(LauncherSettings.MARKER_RING)
+
+        repo.setHomePageMarker(LauncherSettings.MARKER_HOUSE)
+        assertThat(repo.settings.first().homePageMarker).isEqualTo(LauncherSettings.MARKER_HOUSE)
+    }
+
+    @Test
+    fun `homePageMarker falls back to ring on an unknown stored value`() = runTest {
+        val repo = newRepository()
+        repo.setHomePageMarker("garbage")
+        assertThat(repo.settings.first().homePageMarker).isEqualTo(LauncherSettings.MARKER_RING)
+    }
+
+    @Test
+    fun `homePageMarker is exported and imported as a string preference`() = runTest {
+        val repo = newRepository()
+        repo.setHomePageMarker(LauncherSettings.MARKER_HOUSE)
+        assertThat(repo.exportRaw()["home_page_marker"]).isEqualTo(LauncherSettings.MARKER_HOUSE)
+
+        val other = newRepository()
+        other.importRaw(mapOf("home_page_marker" to LauncherSettings.MARKER_HOUSE))
+        assertThat(other.settings.first().homePageMarker).isEqualTo(LauncherSettings.MARKER_HOUSE)
+    }
+
+    @Test
     fun `importRaw ignores a wrong-typed value for a known key`() = runTest {
         val repo = newRepository()
         repo.importRaw(

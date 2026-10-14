@@ -21,6 +21,9 @@
     <string name="settings_two_line_labels">Nimet kahdella rivillä</string>
     <string name="settings_dock_bg">Dockin taustan läpinäkyvyys</string>
     <string name="settings_page_indicator">Sivupisteet</string>
+    <string name="settings_home_page_marker">Kotisivun merkki</string>
+    <string name="settings_home_page_marker_ring">Rengas pisteen ympärillä</string>
+    <string name="settings_home_page_marker_house">Talo-ikoni</string>
     <string name="settings_notifications">Ilmoitukset</string>
     <string name="settings_notif_dots">Ilmoituspisteet</string>
     <string name="settings_notif_count">Näytä lukumäärä</string>

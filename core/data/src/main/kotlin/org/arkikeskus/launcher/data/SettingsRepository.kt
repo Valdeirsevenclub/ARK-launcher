@@ -71,6 +71,8 @@ class SettingsRepository @Inject constructor(
             showDrawerLabels = p[Keys.SHOW_DRAWER_LABELS] ?: true,
             dockBackgroundOpacity = (p[Keys.DOCK_OPACITY] ?: 0.35f).coerceIn(0f, 1f),
             showPageIndicator = p[Keys.SHOW_PAGE_INDICATOR] ?: true,
+            homePageMarker = (p[Keys.HOME_PAGE_MARKER] ?: LauncherSettings.MARKER_RING)
+                .let { if (it == LauncherSettings.MARKER_HOUSE) it else LauncherSettings.MARKER_RING },
             showNotificationDots = p[Keys.SHOW_NOTIF_DOTS] ?: true,
             notificationDotCount = p[Keys.NOTIF_DOT_COUNT] ?: true,
             notificationDotScale = (p[Keys.NOTIF_DOT_SCALE] ?: 1.0f).coerceIn(MIN_DOT_SCALE, MAX_DOT_SCALE),
@@ -317,6 +319,8 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowDrawerLabels(value: Boolean) = edit { it[Keys.SHOW_DRAWER_LABELS] = value }
     suspend fun setDockBackgroundOpacity(value: Float) = edit { it[Keys.DOCK_OPACITY] = value.coerceIn(0f, 1f) }
     suspend fun setShowPageIndicator(value: Boolean) = edit { it[Keys.SHOW_PAGE_INDICATOR] = value }
+    /** Home-page marker style of the page dots (see LauncherSettings.MARKER_*). */
+    suspend fun setHomePageMarker(style: String) = edit { it[Keys.HOME_PAGE_MARKER] = style }
     suspend fun setShowNotificationDots(value: Boolean) = edit { it[Keys.SHOW_NOTIF_DOTS] = value }
     suspend fun setNotificationDotCount(value: Boolean) = edit { it[Keys.NOTIF_DOT_COUNT] = value }
     suspend fun setNotificationDotScale(value: Float) =
@@ -574,6 +578,7 @@ class SettingsRepository @Inject constructor(
         val SHOW_DRAWER_LABELS = booleanPreferencesKey("show_drawer_labels")
         val DOCK_OPACITY = floatPreferencesKey("dock_opacity")
         val SHOW_PAGE_INDICATOR = booleanPreferencesKey("show_page_indicator")
+        val HOME_PAGE_MARKER = stringPreferencesKey("home_page_marker")
         val SHOW_NOTIF_DOTS = booleanPreferencesKey("show_notif_dots")
         val NOTIF_DOT_COUNT = booleanPreferencesKey("notif_dot_count")
         val NOTIF_DOT_SCALE = floatPreferencesKey("notif_dot_scale")
@@ -649,7 +654,7 @@ class SettingsRepository @Inject constructor(
         )
         val STRING_KEYS = setOf(
             "dock_favorites", "hidden_apps", "custom_labels", "drawer_folders",
-            "notif_widget_count_style", "icon_pack_package", "left_swipe_app_key",
+            "notif_widget_count_style", "icon_pack_package", "left_swipe_app_key", "home_page_marker",
             "people_privacy", "pinned_people", "people_aliases", "people_batch_times",
         )
 

@@ -21,6 +21,9 @@
     <string name="settings_two_line_labels">Zweizeilige Beschriftungen</string>
     <string name="settings_dock_bg">Deckkraft des Dock-Hintergrunds</string>
     <string name="settings_page_indicator">Seitenpunkte</string>
+    <string name="settings_home_page_marker">Markierung der Startseite</string>
+    <string name="settings_home_page_marker_ring">Ring um den Punkt</string>
+    <string name="settings_home_page_marker_house">Haus-Symbol</string>
     <string name="settings_notifications">Benachrichtigungen</string>
     <string name="settings_notif_dots">Benachrichtigungspunkte</string>
     <string name="settings_notif_count">Anzahl anzeigen</string>

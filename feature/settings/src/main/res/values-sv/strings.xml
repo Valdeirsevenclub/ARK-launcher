@@ -21,6 +21,9 @@
     <string name="settings_two_line_labels">Appnamn på två rader</string>
     <string name="settings_dock_bg">Bakgrundsopacitet för Dock</string>
     <string name="settings_page_indicator">Sidprickar</string>
+    <string name="settings_home_page_marker">Markering av startsidan</string>
+    <string name="settings_home_page_marker_ring">Ring runt pricken</string>
+    <string name="settings_home_page_marker_house">Husikon</string>
     <string name="settings_notifications">Aviseringar</string>
     <string name="settings_notif_dots">Aviseringsprickar</string>
     <string name="settings_notif_count">Visa antal</string>

@@ -16,6 +16,9 @@ data class LauncherSettings(
     val showDrawerLabels: Boolean = true,
     val dockBackgroundOpacity: Float = 0.35f,
     val showPageIndicator: Boolean = true,
+    /** How the page dots mark the home page: a ring around its dot ([MARKER_RING]) or a house glyph
+     *  in place of the dot ([MARKER_HOUSE]). */
+    val homePageMarker: String = MARKER_RING,
     val showNotificationDots: Boolean = true,
     /** When notification dots are on: true shows the count (Nova-style), false shows a plain dot. */
     val notificationDotCount: Boolean = true,
@@ -90,6 +93,9 @@ data class LauncherSettings(
         const val COUNT_NUMBER = "number"
         const val COUNT_DOT = "dot"
         const val COUNT_NONE = "none"
+
+        const val MARKER_RING = "ring"
+        const val MARKER_HOUSE = "house"
 
         const val PRIVACY_ALL = "all"
         const val PRIVACY_SENDER = "sender"

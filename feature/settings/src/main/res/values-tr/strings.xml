@@ -21,6 +21,9 @@
     <string name="settings_two_line_labels">İki satırlı etiketler</string>
     <string name="settings_dock_bg">Dock arka plan opaklığı</string>
     <string name="settings_page_indicator">Sayfa noktaları</string>
+    <string name="settings_home_page_marker">Ana sayfa işareti</string>
+    <string name="settings_home_page_marker_ring">Noktanın etrafında halka</string>
+    <string name="settings_home_page_marker_house">Ev simgesi</string>
     <string name="settings_notifications">Bildirimler</string>
     <string name="settings_notif_dots">Bildirim noktaları</string>
     <string name="settings_notif_count">Sayıyı göster</string>

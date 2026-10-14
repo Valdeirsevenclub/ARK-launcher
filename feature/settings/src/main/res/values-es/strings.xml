@@ -21,6 +21,9 @@
     <string name="settings_two_line_labels">Nombres en dos líneas</string>
     <string name="settings_dock_bg">Opacidad del fondo del dock</string>
     <string name="settings_page_indicator">Indicador de páginas</string>
+    <string name="settings_home_page_marker">Marca de la página de inicio</string>
+    <string name="settings_home_page_marker_ring">Anillo alrededor del punto</string>
+    <string name="settings_home_page_marker_house">Icono de casa</string>
     <string name="settings_notifications">Notificaciones</string>
     <string name="settings_notif_dots">Puntos de notificación</string>
     <string name="settings_notif_count">Mostrar número</string>

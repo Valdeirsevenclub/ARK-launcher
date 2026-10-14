@@ -563,6 +563,7 @@ fun HomeScreen(
                 showLabels = settings.showHomeLabels,
                 labelColor = Color(settings.appLabelColor),
                 showPageIndicator = settings.showPageIndicator,
+                homePageMarker = settings.homePageMarker,
                 locked = settings.desktopLocked,
                 homeSignals = homeSignals,
                 homePage = if (uiState.loaded) uiState.homePage else null,
