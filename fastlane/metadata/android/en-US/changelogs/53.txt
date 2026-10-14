@@ -1,0 +1,2 @@
+Added
+- Home page marker: the page dots can show a house icon on your home page instead of the ring. Settings > Home, under Page dots.
