@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The *_aliases entries deliberately include accent-less and colloquial spellings for search. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="Typos">
+    <string name="setting_wifi">Wi-Fi</string>
+    <string name="setting_wifi_aliases">wifi,wi-fi,wlan,sieć bezprzewodowa,siec bezprzewodowa,bezprzewodowa,internet,sieć,siec,łączność,lacznosc</string>
+    <string name="setting_bluetooth">Bluetooth</string>
+    <string name="setting_bluetooth_aliases">bluetooth,bt,słuchawki,sluchawki,zestaw słuchawkowy,zestaw sluchawkowy,głośnik,glosnik,parowanie,sparuj</string>
+    <string name="setting_network">Sieć i internet</string>
+    <string name="setting_network_aliases">sieć,siec,internet,sieć komórkowa,siec komorkowa,komórka,komorka,dane mobilne,dane komórkowe,dane komorkowe,dane,data,sim,karta sim,operator,hotspot,łączność,lacznosc</string>
+    <string name="setting_data">Użycie danych</string>
+    <string name="setting_data_aliases">dane,użycie danych,uzycie danych,zużycie danych,zuzycie danych,transfer,transfer danych,dane mobilne,pakiet danych,data</string>
+    <string name="setting_battery">Bateria</string>
+    <string name="setting_battery_aliases">bateria,akumulator,zasilanie,energia,oszczędzanie baterii,oszczedzanie baterii,oszczędzanie energii,oszczedzanie energii,ładowanie,ladowanie</string>
+    <string name="setting_display">Wyświetlacz</string>
+    <string name="setting_display_aliases">wyświetlacz,wyswietlacz,ekran,jasność,jasnosc,tryb ciemny,ciemny motyw,motyw,tapeta</string>
+    <string name="setting_sound">Dźwięk</string>
+    <string name="setting_sound_aliases">dźwięk,dzwiek,dźwięki,dzwieki,głośność,glosnosc,wibracje,wibracja,dzwonek,dźwięk dzwonka,dzwiek dzwonka,sygnał,sygnal</string>
+    <string name="setting_apps">Aplikacje</string>
+    <string name="setting_apps_aliases">aplikacje,aplikacja,apki,apka,appki,programy,apps</string>
+    <string name="setting_storage">Pamięć</string>
+    <string name="setting_storage_aliases">pamięć,pamiec,pamięć wewnętrzna,pamiec wewnetrzna,miejsce,wolne miejsce,dysk,karta sd</string>
+    <string name="setting_location">Lokalizacja</string>
+    <string name="setting_location_aliases">lokalizacja,gps,położenie,polozenie,geolokalizacja,pozycja</string>
+    <string name="setting_datetime">Data i godzina</string>
+    <string name="setting_datetime_aliases">data,godzina,czas,zegar,strefa czasowa,data i godzina</string>
+    <string name="setting_security">Zabezpieczenia</string>
+    <string name="setting_security_aliases">zabezpieczenia,bezpieczeństwo,bezpieczenstwo,blokada,blokada ekranu,odblokowanie,hasło,haslo,pin,odcisk palca</string>
+    <string name="setting_accessibility">Ułatwienia dostępu</string>
+    <string name="setting_accessibility_aliases">ułatwienia dostępu,ulatwienia dostepu,ułatwienia,ulatwienia,dostępność,dostepnosc,a11y</string>
+    <string name="setting_language">Języki i metody wprowadzania</string>
+    <string name="setting_language_aliases">język,jezyk,języki,jezyki,klawiatura,wprowadzanie,metody wprowadzania</string>
+    <string name="setting_about">Informacje o telefonie</string>
+    <string name="setting_about_aliases">informacje,informacje o telefonie,o telefonie,wersja,model,android</string>
+    <string name="setting_systemupdate">Aktualizacje oprogramowania</string>
+    <string name="setting_systemupdate_aliases">aktualizacja oprogramowania,aktualizacja systemu,aktualizacja,aktualizacje,aktualizuj,update,system update</string>
+</resources>

@@ -10,7 +10,7 @@
 [![Built with Jetpack Compose](https://img.shields.io/badge/Built%20with-Jetpack%20Compose-4285F4)](https://developer.android.com/jetpack/compose)
 
 A modern, lightweight Android home-screen launcher built entirely with **Jetpack Compose**.
-It speaks **English, Finnish, German, Spanish, French, Portuguese, Russian, Swedish and Turkish**
+It speaks **English, Finnish, German, Spanish, French, Polish, Portuguese, Russian, Swedish and Turkish**
 (English is the fallback) and shares the visual identity of the
 **Arkikeskus** app, but works as a standalone launcher for anyone.
 

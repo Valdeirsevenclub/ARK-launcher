@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Kopia zapasowa</string>
+    <string name="backup_file_section">Plik</string>
+    <string name="backup_export">Eksportuj do pliku</string>
+    <string name="backup_import">Importuj z pliku</string>
+    <string name="backup_default_name">ARK-launcher-backup</string>
+    <string name="backup_exported">Zapisano kopię zapasową</string>
+    <string name="backup_restored">Przywrócono kopię zapasową</string>
+    <plurals name="backup_restored_skipped">
+        <item quantity="one">Przywrócono kopię zapasową — pominięto %1$d element (niezainstalowany)</item>
+        <item quantity="few">Przywrócono kopię zapasową — pominięto %1$d elementy (niezainstalowane)</item>
+        <item quantity="many">Przywrócono kopię zapasową — pominięto %1$d elementów (niezainstalowanych)</item>
+        <item quantity="other">Przywrócono kopię zapasową — pominięto %1$d elementów (niezainstalowanych)</item>
+    </plurals>
+    <string name="backup_import_invalid">Nieprawidłowy lub niezgodny plik kopii zapasowej</string>
+    <string name="backup_error_too_large">Plik kopii zapasowej jest za duży</string>
+    <string name="backup_failed">Operacja nie powiodła się</string>
+    <string name="backup_restore_confirm_title">Przywrócić kopię zapasową?</string>
+    <string name="backup_restore_confirm_msg">Twój obecny ekran główny i ustawienia zostaną zastąpione. Widżety zostaną przywrócone jako elementy zastępcze, które skonfigurujesz dotknięciem.</string>
+    <string name="backup_restore_confirm_ok">Przywróć</string>
+    <string name="backup_cancel">Anuluj</string>
+    <string name="backup_last_time">Ostatnio: %1$s</string>
+</resources>
