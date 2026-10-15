@@ -1,0 +1,2 @@
+Added
+- Polish translation. Corrections from native speakers are welcome.
