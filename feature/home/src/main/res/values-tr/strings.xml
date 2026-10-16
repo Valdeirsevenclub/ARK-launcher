@@ -94,8 +94,7 @@
     <string name="home_options_page_limit">Sayfa sınırına ulaşıldı</string>
     <string name="home_options_page_not_empty">Sayfa boş değil</string>
     <string name="home_options_page_failed">Sayfa değiştirilemedi</string>
-    <string name="home_last_page_hint">Son sayfa</string>
-    <string name="home_first_page_hint">İlk sayfa</string>
+    <string name="home_page_end_hint">Başka sayfa yok</string>
     <string name="widget_remove">Widget\'ı kaldır</string>
     <string name="widget_unavailable">Widget kullanılamıyor</string>
     <string name="widget_restore_tap">Kurmak için dokunun</string>

@@ -35,6 +35,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -669,7 +670,7 @@ internal fun Workspace(
     PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
     // A plain swipe that ran into an end: the bounce off the empty page past the last one, or a pull
     // back on page 0 that neither wraps nor belongs to the left-edge app. Each shows PageEndHint.
-    var pageEndBounce by remember { mutableStateOf(PageEndBounce(serial = 0, atStart = false)) }
+    var pageEndBounces by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(settledPage, pageCount, dragging, draggingLocal, crossSurfaceDrag, widgetDragController.active, tailCopy) {
         // With the copy of page 0 at the tail there is nothing to retreat from: PageZeroCopySwap
@@ -687,7 +688,7 @@ internal fun Workspace(
             )
             if (target != null) {
                 // Not after a drag that just ended here: that drop page was the user's own choice.
-                if (!newPageLatched) pageEndBounce = PageEndBounce(pageEndBounce.serial + 1, atStart = false)
+                if (!newPageLatched) pageEndBounces++
                 pagerState.animateScrollToPage(target)
             }
         }
@@ -759,7 +760,7 @@ internal fun Workspace(
                     // Not during a drag, nor just after one (newPageLatched), like the right end's hint.
                     onStartOverscroll = {
                         if (!dragInProgress() && !newPageLatched) {
-                            pageEndBounce = PageEndBounce(pageEndBounce.serial + 1, atStart = true)
+                            pageEndBounces++
                         }
                     },
                 ),
@@ -1495,7 +1496,7 @@ internal fun Workspace(
         }
         // Just above the page dots (or where they would be): touch-transparent text.
         PageEndHint(
-            bounce = { pageEndBounce },
+            bounces = { pageEndBounces },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
         )
         WidgetDragLayer(widgetDragController, dragController, cellW, cellH)

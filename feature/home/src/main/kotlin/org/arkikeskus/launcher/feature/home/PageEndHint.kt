@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,29 +17,25 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.delay
 
-/** A swipe that ran into an end of the pages: [serial] grows with each one (0 = none yet), and
- *  [atStart] tells the first page from the last. */
-@Immutable
-internal data class PageEndBounce(val serial: Int, val atStart: Boolean)
-
 /**
- * "First page" / "Last page", shown briefly whenever a swipe runs into that end of the workspace.
- * Read through [bounce] so only this hint recomposes when it changes. White with the widgets' text
- * shadow, so it reads on a light wallpaper too.
+ * "No more pages", shown briefly whenever a swipe runs into either end of the workspace — the same
+ * words at both ends, since the home page need not be the first one. [bounces] counts those swipes
+ * (0 = none yet) and is read through a lambda so only this hint recomposes. White with the widgets'
+ * text shadow, so it reads on a light wallpaper too.
  */
 @Composable
-internal fun PageEndHint(bounce: () -> PageEndBounce, modifier: Modifier = Modifier) {
-    val current = bounce()
+internal fun PageEndHint(bounces: () -> Int, modifier: Modifier = Modifier) {
+    val count = bounces()
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(current.serial) {
-        if (current.serial == 0) return@LaunchedEffect
+    LaunchedEffect(count) {
+        if (count == 0) return@LaunchedEffect
         visible = true
         delay(PAGE_END_HINT_MS)
         visible = false
     }
     AnimatedVisibility(visible = visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
         Text(
-            text = stringResource(if (current.atStart) R.string.home_first_page_hint else R.string.home_last_page_hint),
+            text = stringResource(R.string.home_page_end_hint),
             color = Color.White,
             style = MaterialTheme.typography.labelLarge.copy(
                 shadow = Shadow(color = Color.Black.copy(alpha = 0.55f), blurRadius = 8f),

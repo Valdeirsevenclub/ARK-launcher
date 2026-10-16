@@ -98,7 +98,7 @@ class WorkspaceInfiniteScrollTest {
         swipeOn()
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(0)
-        compose.onNodeWithText("Last page").assertDoesNotExist()
+        compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
     }
 
     @Test
@@ -123,7 +123,7 @@ class WorkspaceInfiniteScrollTest {
         swipeOn()
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(2)
-        compose.onNodeWithText("Last page").assertExists()
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
     }
 
     @Test
@@ -132,27 +132,27 @@ class WorkspaceInfiniteScrollTest {
         swipeBack()
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(0)
-        compose.onNodeWithText("First page").assertExists()
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
     }
 
     @Test
-    fun aSinglePageSaysFirstPageWhenSwipedBack() {
+    fun aSinglePageSaysNoMorePagesWhenSwipedBack() {
         setWorkspace(pageCount = 1, homePage = 0, infiniteScroll = true)
         swipeBack()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("First page").assertExists()
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
     }
 
     @Test
-    fun theLeftEdgeAppGetsNoFirstPageHint() {
+    fun theLeftEdgeAppGetsNoEndOfPagesHint() {
         setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false, leftEdgeAction = true)
         swipeBack()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("First page").assertDoesNotExist()
+        compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
     }
 
     @Test
-    fun aSecondFingerPullingBackDuringADockDragGetsNoFirstPageHint() {
+    fun aSecondFingerPullingBackDuringADockDragGetsNoEndOfPagesHint() {
         setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false)
         // A dock icon held mid-grid by one finger (the pager still scrolls for a dock drag)…
         compose.runOnIdle {
@@ -163,7 +163,7 @@ class WorkspaceInfiniteScrollTest {
         // …while another finger pulls back on page 0.
         swipeBack()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("First page").assertDoesNotExist()
+        compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
     }
 
     @Test
@@ -172,7 +172,7 @@ class WorkspaceInfiniteScrollTest {
         swipeBack()
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(2)
-        compose.onNodeWithText("First page").assertDoesNotExist()
+        compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
     }
 
     @Test
@@ -276,11 +276,12 @@ class WorkspaceInfiniteScrollTest {
         swipeOn()
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(0)
-        compose.onNodeWithText("Last page").assertExists()
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
     }
 
     private companion object {
         const val WIDGET_ROW = 7L
         const val WIDGET_ID = 42
+        const val NO_MORE_PAGES = "No more pages"
     }
 }

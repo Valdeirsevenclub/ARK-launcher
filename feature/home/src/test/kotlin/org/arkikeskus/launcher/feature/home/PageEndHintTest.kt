@@ -2,7 +2,7 @@ package org.arkikeskus.launcher.feature.home
 
 import android.app.Application
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -17,38 +17,27 @@ import org.robolectric.annotation.Config
 class PageEndHintTest {
     @get:Rule val compose = createComposeRule()
 
-    private var bounce by mutableStateOf(PageEndBounce(serial = 0, atStart = false))
+    private var bounces by mutableIntStateOf(0)
 
     @Test
     fun staysHiddenUntilTheFirstBounce() {
-        compose.setContent { PageEndHint(bounce = { bounce }) }
+        compose.setContent { PageEndHint(bounces = { bounces }) }
         compose.mainClock.advanceTimeBy(500)
-        compose.onNodeWithText("Last page").assertDoesNotExist()
-        compose.onNodeWithText("First page").assertDoesNotExist()
+        compose.onNodeWithText("No more pages").assertDoesNotExist()
     }
 
     @Test
-    fun eachBounceOffTheEndSaysLastPageBrieflyAndThenItGoes() {
-        compose.setContent { PageEndHint(bounce = { bounce }) }
+    fun eachBounceSaysNoMorePagesBrieflyAndThenItGoes() {
+        compose.setContent { PageEndHint(bounces = { bounces }) }
 
-        bounce = PageEndBounce(serial = 1, atStart = false)
+        bounces = 1
         compose.mainClock.advanceTimeBy(300)
-        compose.onNodeWithText("Last page").assertExists()
+        compose.onNodeWithText("No more pages").assertExists()
         compose.mainClock.advanceTimeBy(3_000)
-        compose.onNodeWithText("Last page").assertDoesNotExist()
+        compose.onNodeWithText("No more pages").assertDoesNotExist()
 
-        bounce = PageEndBounce(serial = 2, atStart = false)
+        bounces = 2
         compose.mainClock.advanceTimeBy(300)
-        compose.onNodeWithText("Last page").assertExists()
-    }
-
-    @Test
-    fun aBounceOffTheStartSaysFirstPage() {
-        compose.setContent { PageEndHint(bounce = { bounce }) }
-
-        bounce = PageEndBounce(serial = 1, atStart = true)
-        compose.mainClock.advanceTimeBy(300)
-        compose.onNodeWithText("First page").assertExists()
-        compose.onNodeWithText("Last page").assertDoesNotExist()
+        compose.onNodeWithText("No more pages").assertExists()
     }
 }

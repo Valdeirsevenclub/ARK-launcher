@@ -94,8 +94,7 @@
     <string name="home_options_page_limit">Nombre maximal de pages atteint</string>
     <string name="home_options_page_not_empty">La page n\'est pas vide</string>
     <string name="home_options_page_failed">Impossible de modifier la page</string>
-    <string name="home_last_page_hint">Dernière page</string>
-    <string name="home_first_page_hint">Première page</string>
+    <string name="home_page_end_hint">Aucune autre page</string>
     <string name="widget_remove">Supprimer le widget</string>
     <string name="widget_unavailable">Widget indisponible</string>
     <string name="widget_restore_tap">Appuyez pour configurer</string>
