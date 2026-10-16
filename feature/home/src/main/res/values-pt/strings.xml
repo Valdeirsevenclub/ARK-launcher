@@ -95,6 +95,7 @@
     <string name="home_options_page_not_empty">A página não está vazia</string>
     <string name="home_options_page_failed">Não foi possível alterar a página</string>
     <string name="home_last_page_hint">Última página</string>
+    <string name="home_first_page_hint">Primeira página</string>
     <string name="widget_remove">Remover widget</string>
     <string name="widget_unavailable">Widget indisponível</string>
     <string name="widget_restore_tap">Toque para configurar</string>

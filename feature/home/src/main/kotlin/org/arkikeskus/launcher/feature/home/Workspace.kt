@@ -35,7 +35,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -634,15 +633,19 @@ internal fun Workspace(
     // retreat must yield to it (otherwise the page snaps back to the front under the finger — the
     // "it won't stay on the other page" bug). The in-home icon/local drags are already covered by
     // dragging/draggingLocal.
-    val crossSurfaceDrag = dragController.moving &&
+    fun crossSurfaceDragNow(): Boolean = dragController.moving &&
         (dragController.source == DragSource.Drawer || dragController.source == DragSource.Dock)
+    val crossSurfaceDrag = crossSurfaceDragNow()
 
     // Infinite scrolling (WorkspaceWrap.kt): outside a drag the trailing page shows a copy of page 0.
     // Any drag (or the widget edit frame) turns it back into the empty new page, and it stays that
     // until the pager rests on a real page — so a drop onto the new page, or the retreat after one,
     // never shows page 0 there. The drag code itself never sees the copy.
-    val anyDrag = dragging != null || draggingLocal != null || crossSurfaceDrag ||
+    // A function, so callbacks can ask at call time (a dock drag leaves the pager scrollable, so a
+    // second finger can still pull it while one is in progress).
+    fun dragInProgress(): Boolean = dragging != null || draggingLocal != null || crossSurfaceDragNow() ||
         widgetDragController.active != null || editingWidget != null
+    val anyDrag = dragInProgress()
     var newPageLatched by remember { mutableStateOf(false) }
     LaunchedEffect(anyDrag, pageCount) {
         if (anyDrag) {
@@ -664,8 +667,9 @@ internal fun Workspace(
         }.collect { copyOnScreen = it }
     }
     PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
-    // Bounces off the empty page past the last one after a plain swipe; each shows the "Last page" hint.
-    var lastPageBounces by remember { mutableIntStateOf(0) }
+    // A plain swipe that ran into an end: the bounce off the empty page past the last one, or a pull
+    // back on page 0 that neither wraps nor belongs to the left-edge app. Each shows PageEndHint.
+    var pageEndBounce by remember { mutableStateOf(PageEndBounce(serial = 0, atStart = false)) }
 
     LaunchedEffect(settledPage, pageCount, dragging, draggingLocal, crossSurfaceDrag, widgetDragController.active, tailCopy) {
         // With the copy of page 0 at the tail there is nothing to retreat from: PageZeroCopySwap
@@ -683,7 +687,7 @@ internal fun Workspace(
             )
             if (target != null) {
                 // Not after a drag that just ended here: that drop page was the user's own choice.
-                if (!newPageLatched) lastPageBounces++
+                if (!newPageLatched) pageEndBounce = PageEndBounce(pageEndBounce.serial + 1, atStart = false)
                 pagerState.animateScrollToPage(target)
             }
         }
@@ -752,6 +756,12 @@ internal fun Workspace(
                     tailShowsPageZero = tailCopy,
                     leftEdgeAction = leftEdgeActionEnabled,
                     onWrap = { toTailCopy -> copyOnScreen = toTailCopy },
+                    // Not during a drag, nor just after one (newPageLatched), like the right end's hint.
+                    onStartOverscroll = {
+                        if (!dragInProgress() && !newPageLatched) {
+                            pageEndBounce = PageEndBounce(pageEndBounce.serial + 1, atStart = true)
+                        }
+                    },
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -1484,8 +1494,8 @@ internal fun Workspace(
             }
         }
         // Just above the page dots (or where they would be): touch-transparent text.
-        LastPageHint(
-            showCount = lastPageBounces,
+        PageEndHint(
+            bounce = { pageEndBounce },
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
         )
         WidgetDragLayer(widgetDragController, dragController, cellW, cellH)

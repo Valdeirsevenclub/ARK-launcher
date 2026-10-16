@@ -127,6 +127,55 @@ class WorkspaceInfiniteScrollTest {
     }
 
     @Test
+    fun withInfiniteScrollOffSwipingBackOnTheFirstPageSaysSo() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false)
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+        compose.onNodeWithText("First page").assertExists()
+    }
+
+    @Test
+    fun aSinglePageSaysFirstPageWhenSwipedBack() {
+        setWorkspace(pageCount = 1, homePage = 0, infiniteScroll = true)
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("First page").assertExists()
+    }
+
+    @Test
+    fun theLeftEdgeAppGetsNoFirstPageHint() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false, leftEdgeAction = true)
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("First page").assertDoesNotExist()
+    }
+
+    @Test
+    fun aSecondFingerPullingBackDuringADockDragGetsNoFirstPageHint() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false)
+        // A dock icon held mid-grid by one finger (the pager still scrolls for a dock drag)…
+        compose.runOnIdle {
+            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), DragSource.Dock, Offset.Zero, Any())
+            drag.beginMove()
+            drag.update(drag.gridBounds.center)
+        }
+        // …while another finger pulls back on page 0.
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("First page").assertDoesNotExist()
+    }
+
+    @Test
+    fun wrappingBackSaysNothing() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(2)
+        compose.onNodeWithText("First page").assertDoesNotExist()
+    }
+
+    @Test
     fun aDragThatEndsWhileFlippingOntoTheNewPageReturnsToTheLastPage() {
         setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = true)
         val token = Any()

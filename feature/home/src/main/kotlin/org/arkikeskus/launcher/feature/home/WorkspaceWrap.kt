@@ -76,6 +76,8 @@ internal fun ownsWidgetViews(page: Int, isTailCopy: Boolean, copyOnScreen: Boole
  * show the same content, so the jump is invisible and the rest of the drag scrolls on from there.
  * [PagerState.dispatchRawDelta] moves the pager without cancelling the drag that is scrolling it.
  * [onWrap] runs just before a jump (true = onto the copy), while the pager is still where it was.
+ * [onStartOverscroll] runs for each pull back on page 0 that neither wraps nor belongs to the
+ * left-edge app — the start of the pages has no empty page to bounce off, so the pull itself is it.
  */
 @Composable
 internal fun rememberWrapAroundOverscroll(
@@ -84,9 +86,12 @@ internal fun rememberWrapAroundOverscroll(
     tailShowsPageZero: Boolean,
     leftEdgeAction: Boolean,
     onWrap: (toTailCopy: Boolean) -> Unit = {},
+    onStartOverscroll: () -> Unit = {},
 ): OverscrollEffect {
     val platform = rememberOverscrollEffect()
-    val config = rememberUpdatedState(WrapConfig(pageCount, tailShowsPageZero, leftEdgeAction, onWrap))
+    val config = rememberUpdatedState(
+        WrapConfig(pageCount, tailShowsPageZero, leftEdgeAction, onWrap, onStartOverscroll),
+    )
     return remember(pagerState, platform) { WrapAroundOverscroll(pagerState, platform) { config.value } }
 }
 
@@ -95,6 +100,7 @@ private class WrapConfig(
     val tailShowsPageZero: Boolean,
     val leftEdgeAction: Boolean,
     val onWrap: (toTailCopy: Boolean) -> Unit,
+    val onStartOverscroll: () -> Unit,
 )
 
 private class WrapAroundOverscroll(
@@ -114,8 +120,9 @@ private class WrapAroundOverscroll(
                 consumed
             } else {
                 val c = config()
+                val atStart = !pagerState.canScrollBackward
                 val pages = wrapJumpPages(
-                    atStart = !pagerState.canScrollBackward,
+                    atStart = atStart,
                     atEnd = !pagerState.canScrollForward,
                     pageCount = c.pageCount,
                     tailShowsPageZero = c.tailShowsPageZero,
@@ -123,6 +130,7 @@ private class WrapAroundOverscroll(
                 )
                 val stride = pagerState.layoutInfo.pageSize + pagerState.layoutInfo.pageSpacing
                 if (pages == 0 || stride <= 0) {
+                    if (pages == 0 && atStart && !c.leftEdgeAction) c.onStartOverscroll()
                     consumed
                 } else {
                     c.onWrap(pages > 0)
