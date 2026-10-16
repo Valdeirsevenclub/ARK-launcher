@@ -35,6 +35,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -137,6 +138,12 @@ internal fun Workspace(
     labelColor: Color = Color.White,
     showPageIndicator: Boolean,
     homePageMarker: String = LauncherSettings.MARKER_RING,
+    /** Swiping on from the last page continues to the first, and back from the first to the last
+     *  (see WorkspaceWrap.kt). Off: the last page bounces back from the empty drop page. */
+    infiniteScroll: Boolean = false,
+    /** The left-edge app takes a right-drag on page 0 (HomeScreen's root detector), so page 0 never
+     *  wraps back to the last page while it is set. */
+    leftEdgeActionEnabled: Boolean = false,
     locked: Boolean,
     homeSignals: Flow<Boolean>,
     /** The page HOME returns to and the launcher opens on; null until settings have been read. */
@@ -498,9 +505,11 @@ internal fun Workspace(
         onTap: () -> Unit,
         onStillPress: () -> Unit,
         onRemove: () -> Unit,
+        // The desktop lock, or the copy of page 0 at the tail (taps only).
+        pageLocked: Boolean = locked,
     // [removable] is a key: a folder's removability changes with its visible apps, and a detector
     // holding the old value could remove a folder that shows apps again.
-    ): Modifier = this.pointerInput(rowId, entry.page, entry.cellX, entry.cellY, cellW, cellH, columns, rows, locked, removable) {
+    ): Modifier = this.pointerInput(rowId, entry.page, entry.cellX, entry.cellY, cellW, cellH, columns, rows, pageLocked, removable) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             down.consume()
@@ -511,7 +520,7 @@ internal fun Workspace(
             if (press !is IconPressOutcome.Held) return@awaitEachGesture
             val holdPos = press.position
             // Desktop locked: long-press does nothing (no move/remove); tap (above) still opens.
-            if (locked) return@awaitEachGesture
+            if (pageLocked) return@awaitEachGesture
             // PICK UP — refused while another finger holds a lift (see HomeDragController.claim).
             val token = Any()
             if (!dragController.claim(token)) return@awaitEachGesture
@@ -627,8 +636,41 @@ internal fun Workspace(
     // dragging/draggingLocal.
     val crossSurfaceDrag = dragController.moving &&
         (dragController.source == DragSource.Drawer || dragController.source == DragSource.Dock)
-    LaunchedEffect(settledPage, pageCount, dragging, draggingLocal, crossSurfaceDrag, widgetDragController.active) {
-        if (dragging != null || draggingLocal != null || crossSurfaceDrag || widgetDragController.active != null || settledPage < pageCount) return@LaunchedEffect
+
+    // Infinite scrolling (WorkspaceWrap.kt): outside a drag the trailing page shows a copy of page 0.
+    // Any drag (or the widget edit frame) turns it back into the empty new page, and it stays that
+    // until the pager rests on a real page — so a drop onto the new page, or the retreat after one,
+    // never shows page 0 there. The drag code itself never sees the copy.
+    val anyDrag = dragging != null || draggingLocal != null || crossSurfaceDrag ||
+        widgetDragController.active != null || editingWidget != null
+    var newPageLatched by remember { mutableStateOf(false) }
+    LaunchedEffect(anyDrag, pageCount) {
+        if (anyDrag) {
+            newPageLatched = true
+            return@LaunchedEffect
+        }
+        // Released only once the pager RESTS on a real page: a drag can end while its edge flip is
+        // still animating onto the new page, and settledPage still names the page it left then.
+        snapshotFlow { !pagerState.isScrollInProgress && pagerState.settledPage < pageCount }.first { it }
+        newPageLatched = false
+    }
+    val tailCopy = tailShowsPageZero(infiniteScroll, pageCount, anyDrag, newPageLatched)
+    // Which instance of page 0 hosts its widget views (ownsWidgetViews). Follows the pager, and is set
+    // ahead of each jump so the instance arriving on screen attaches them in its very first frame.
+    var copyOnScreen by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState, pageCount, tailCopy) {
+        snapshotFlow {
+            tailCopy && tailCopyOnScreen(pagerState.currentPage + pagerState.currentPageOffsetFraction, pageCount)
+        }.collect { copyOnScreen = it }
+    }
+    PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
+    // Bounces off the empty page past the last one after a plain swipe; each shows the "Last page" hint.
+    var lastPageBounces by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(settledPage, pageCount, dragging, draggingLocal, crossSurfaceDrag, widgetDragController.active, tailCopy) {
+        // With the copy of page 0 at the tail there is nothing to retreat from: PageZeroCopySwap
+        // moves on to the real page 0 instead.
+        if (tailCopy || dragging != null || draggingLocal != null || crossSurfaceDrag || widgetDragController.active != null || settledPage < pageCount) return@LaunchedEffect
         // After a cross-surface drag ends, the dropped app reaches this page via the DB flow a beat
         // later — wait briefly before deciding the page is empty, so a valid drop isn't undone.
         // A page-count change cancels this wait: the trailing page may have become permanent.
@@ -639,7 +681,11 @@ internal fun Workspace(
                 permanentPageCount = pageCount,
                 hasContent = latestEntries.any { it.page == settledPage },
             )
-            if (target != null) pagerState.animateScrollToPage(target)
+            if (target != null) {
+                // Not after a drag that just ended here: that drop page was the user's own choice.
+                if (!newPageLatched) lastPageBounces++
+                pagerState.animateScrollToPage(target)
+            }
         }
     }
 
@@ -700,12 +746,27 @@ internal fun Workspace(
                 beyondViewportPageCount = if (
                     dragController.moving || localMoving || widgetDragController.moving
                 ) pageCount.coerceAtLeast(0) else 0,
+                overscrollEffect = rememberWrapAroundOverscroll(
+                    pagerState = pagerState,
+                    pageCount = pageCount,
+                    tailShowsPageZero = tailCopy,
+                    leftEdgeAction = leftEdgeActionEnabled,
+                    onWrap = { toTailCopy -> copyOnScreen = toTailCopy },
+                ),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .onSizeChanged { gridSize = it }
                     .onGloballyPositioned { dragController.gridBounds = it.boundsInRoot() },
-            ) { page ->
+            ) { pagerPage ->
+                // With infinite scrolling the tail is a copy of page 0 (WorkspaceWrap.kt). It draws page
+                // 0's content but takes taps only (pageLocked) and never opens the empty-area menu: a
+                // lift or a page operation there would land on the tail's index, not on page 0. It is
+                // on screen only while the pager slides through it.
+                val isTailCopy = tailCopy && pagerPage == pageCount
+                val page = if (isTailCopy) 0 else pagerPage
+                val pageLocked = locked || isTailCopy
+                val onTailCopy by rememberUpdatedState(isTailCopy)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -790,7 +851,7 @@ internal fun Workspace(
                                 // Also suppressed while a widget is in edit mode (editingWidget != null):
                                 // a still dwell on the widget during a move/remove drag must not also
                                 // open the home-options menu underneath the edit scrim.
-                                if (held == null && !resolved && dragging == null && editingWidget == null && currentWidgetDrag.active == null) {
+                                if (held == null && !resolved && dragging == null && editingWidget == null && currentWidgetDrag.active == null && !onTailCopy) {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     // Anchor the options popup at the press point (root coords); flip it
                                     // above when the press is in the lower half of the screen.
@@ -848,6 +909,7 @@ internal fun Workspace(
                                             onTap = { onOpenFolder(entry) },
                                             onStillPress = { onOpenFolder(entry) },
                                             onRemove = { onRemoveFolder(entry.id) },
+                                            pageLocked = pageLocked,
                                         ),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -892,7 +954,7 @@ internal fun Workspace(
                                     }
                                     .pointerInput(
                                         placed.app.key, placed.page, placed.cellX, placed.cellY,
-                                        cellW, cellH, columns, rows, locked,
+                                        cellW, cellH, columns, rows, pageLocked,
                                     ) {
                                         awaitEachGesture {
                                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -913,7 +975,7 @@ internal fun Workspace(
                                             if (press !is IconPressOutcome.Held) return@awaitEachGesture
                                             val holdPos = press.position
                                             // Desktop locked: long-press does nothing (no menu, no drag); tap still launches.
-                                            if (locked) return@awaitEachGesture
+                                            if (pageLocked) return@awaitEachGesture
                                             // PICK UP — lift into the shared controller (not yet
                                             // "moving"); refused while another finger holds a lift.
                                             val token = Any()
@@ -1096,6 +1158,7 @@ internal fun Workspace(
                                             onTap = { onLaunchShortcut(entry) },
                                             onStillPress = {},
                                             onRemove = { onRemoveShortcut(entry.rowId) },
+                                            pageLocked = pageLocked,
                                         ),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -1115,15 +1178,29 @@ internal fun Workspace(
                                 val hostView = widgetViews[widget.appWidgetId]
                                 val widgetScrollable = widgetScrollableById[widget.appWidgetId] ?: false
                                 var widgetRect by remember(widget.rowId) { mutableStateOf(Rect.Zero) }
-                                LaunchedEffect(widget.rowId, widgetScrollable) {
-                                    if (widgetScrollable && !widgetRect.isEmpty) {
-                                        dragController.scrollableWidgetRects[widget.rowId] = widgetRect
-                                    } else {
-                                        dragController.scrollableWidgetRects.remove(widget.rowId)
+                                // Page 0 can be composed twice (the real page and the copy at the tail):
+                                // its host views and its scroll-bail rect belong to the instance on
+                                // screen (WorkspaceWrap.kt); every other page owns its widgets. Ownership
+                                // is read where it is used — this flow, the position callback, the host
+                                // view's update — never as a composed value: a prefetched page can be
+                                // composed with copyOnScreen still stale and is not recomposed when it
+                                // flips. The copy keeps its rect under its own key (row ids are positive),
+                                // so neither instance can drop the other's.
+                                val rectKey = if (isTailCopy) -widget.rowId else widget.rowId
+                                LaunchedEffect(rectKey, widgetScrollable) {
+                                    snapshotFlow {
+                                        widgetScrollable && ownsWidgetViews(page, isTailCopy, copyOnScreen) &&
+                                            !widgetRect.isEmpty
+                                    }.collect { register ->
+                                        if (register) {
+                                            dragController.scrollableWidgetRects[rectKey] = widgetRect
+                                        } else {
+                                            dragController.scrollableWidgetRects.remove(rectKey)
+                                        }
                                     }
                                 }
-                                DisposableEffect(widget.rowId) {
-                                    onDispose { dragController.scrollableWidgetRects.remove(widget.rowId) }
+                                DisposableEffect(rectKey) {
+                                    onDispose { dragController.scrollableWidgetRects.remove(rectKey) }
                                 }
                                 Box(
                                     modifier = Modifier
@@ -1139,13 +1216,15 @@ internal fun Workspace(
                                         )
                                         .onGloballyPositioned {
                                             widgetRect = it.boundsInRoot()
-                                            if (widgetScrollable) dragController.scrollableWidgetRects[widget.rowId] = widgetRect
+                                            if (widgetScrollable && ownsWidgetViews(page, isTailCopy, copyOnScreen)) {
+                                                dragController.scrollableWidgetRects[rectKey] = widgetRect
+                                            }
                                         }
                                         .graphicsLayer {
                                             alpha = if (widgetDragController.moving &&
                                                 widgetDragController.active?.item?.rowId == widget.rowId) 0f else 1f
                                         }
-                                        .widgetDragGesture(widget.rowId, !locked, widgetDragController) { root, fraction, owner ->
+                                        .widgetDragGesture(widget.rowId, !pageLocked, widgetDragController) { root, fraction, owner ->
                                             liftWidget(EditingItem(widget.rowId, widget.appWidgetId, widget.page,
                                                 widget.cellX, widget.cellY, widget.spanX, widget.spanY), root, fraction, owner)
                                         },
@@ -1165,7 +1244,11 @@ internal fun Workspace(
                                                         sendWidgetSize(hostView, wDp, hDp)
                                                     }
                                                 }
-                                                if (hostView.parent !== container) {
+                                                // Only the instance on screen hosts the view. Read on every
+                                                // run: the update observes copyOnScreen itself, so a flip
+                                                // re-runs this block in both instances of page 0.
+                                                val owns = ownsWidgetViews(page, isTailCopy, copyOnScreen)
+                                                if (owns && hostView.parent !== container) {
                                                     (hostView.parent as? android.view.ViewGroup)?.removeView(hostView)
                                                     container.removeAllViews()
                                                     container.addView(
@@ -1227,8 +1310,8 @@ internal fun Workspace(
                                         .padding(6.dp)
                                         .background(Color.Black.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
                                         .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                        .pointerInput(pending.rowId, locked) {
-                                            if (locked) return@pointerInput
+                                        .pointerInput(pending.rowId, pageLocked) {
+                                            if (pageLocked) return@pointerInput
                                             detectTapGestures(
                                                 onTap = { onRestorePendingWidget(pending) },
                                                 onLongPress = { onRemovePendingWidget(pending.rowId) },
@@ -1279,7 +1362,7 @@ internal fun Workspace(
                                             alpha = if (widgetDragController.moving &&
                                                 widgetDragController.active?.item?.rowId == space.rowId) 0f else 1f
                                         }
-                                        .widgetDragGesture(space.rowId, !locked, widgetDragController) { root, fraction, owner ->
+                                        .widgetDragGesture(space.rowId, !pageLocked, widgetDragController) { root, fraction, owner ->
                                             liftWidget(EditingItem(space.rowId, null, space.page,
                                                 space.cellX, space.cellY, space.spanX, space.spanY), root, fraction, owner)
                                         },
@@ -1391,7 +1474,7 @@ internal fun Workspace(
             if (showPageIndicator && pageCount > 1) {
                 PageDots(
                     count = pageCount,
-                    current = pagerState.currentPage,
+                    current = dotForPagerPage(pagerState.currentPage, pageCount, tailCopy),
                     home = homeIndex,
                     homeMarker = homePageMarker,
                     modifier = Modifier
@@ -1400,6 +1483,11 @@ internal fun Workspace(
                 )
             }
         }
+        // Just above the page dots (or where they would be): touch-transparent text.
+        LastPageHint(
+            showCount = lastPageBounces,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp),
+        )
         WidgetDragLayer(widgetDragController, dragController, cellW, cellH)
         // The floating dragged *app icon* is drawn by LauncherShell (above the workspace, dock and the
         // drawer) so it can travel across surfaces. A dragged folder/shortcut never leaves the grid, so

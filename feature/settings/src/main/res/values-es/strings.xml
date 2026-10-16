@@ -24,6 +24,8 @@
     <string name="settings_home_page_marker">Marca de la página de inicio</string>
     <string name="settings_home_page_marker_ring">Anillo alrededor del punto</string>
     <string name="settings_home_page_marker_house">Icono de casa</string>
+    <string name="settings_infinite_scroll">Desplazamiento infinito</string>
+    <string name="settings_infinite_scroll_desc">Después de la última página vuelve la primera</string>
     <string name="settings_notifications">Notificaciones</string>
     <string name="settings_notif_dots">Puntos de notificación</string>
     <string name="settings_notif_count">Mostrar número</string>

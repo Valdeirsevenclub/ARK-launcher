@@ -564,6 +564,10 @@ fun HomeScreen(
                 labelColor = Color(settings.appLabelColor),
                 showPageIndicator = settings.showPageIndicator,
                 homePageMarker = settings.homePageMarker,
+                infiniteScroll = settings.infiniteScroll,
+                // Same condition as pixelHomeSwipe's left-edge gesture above: while it owns the
+                // right-drag on page 0, page 0 must not wrap back.
+                leftEdgeActionEnabled = leftSwipeAvailable && !showOnboarding,
                 locked = settings.desktopLocked,
                 homeSignals = homeSignals,
                 homePage = if (uiState.loaded) uiState.homePage else null,

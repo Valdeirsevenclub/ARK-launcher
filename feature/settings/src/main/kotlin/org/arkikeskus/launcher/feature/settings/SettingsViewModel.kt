@@ -83,6 +83,7 @@ class SettingsViewModel @Inject constructor(
     fun setDockBackgroundOpacity(value: Float) = update { repository.setDockBackgroundOpacity(value) }
     fun setShowPageIndicator(value: Boolean) = update { repository.setShowPageIndicator(value) }
     fun setHomePageMarker(value: String) = update { repository.setHomePageMarker(value) }
+    fun setInfiniteScroll(value: Boolean) = update { repository.setInfiniteScroll(value) }
     fun setShowNotificationDots(value: Boolean) = update { repository.setShowNotificationDots(value) }
     fun setNotificationDotCount(value: Boolean) = update { repository.setNotificationDotCount(value) }
     fun setNotificationDotScale(value: Float) = update { repository.setNotificationDotScale(value) }

@@ -73,6 +73,7 @@ class SettingsRepository @Inject constructor(
             showPageIndicator = p[Keys.SHOW_PAGE_INDICATOR] ?: true,
             homePageMarker = (p[Keys.HOME_PAGE_MARKER] ?: LauncherSettings.MARKER_RING)
                 .let { if (it == LauncherSettings.MARKER_HOUSE) it else LauncherSettings.MARKER_RING },
+            infiniteScroll = p[Keys.INFINITE_SCROLL] ?: true,
             showNotificationDots = p[Keys.SHOW_NOTIF_DOTS] ?: true,
             notificationDotCount = p[Keys.NOTIF_DOT_COUNT] ?: true,
             notificationDotScale = (p[Keys.NOTIF_DOT_SCALE] ?: 1.0f).coerceIn(MIN_DOT_SCALE, MAX_DOT_SCALE),
@@ -321,6 +322,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setShowPageIndicator(value: Boolean) = edit { it[Keys.SHOW_PAGE_INDICATOR] = value }
     /** Home-page marker style of the page dots (see LauncherSettings.MARKER_*). */
     suspend fun setHomePageMarker(style: String) = edit { it[Keys.HOME_PAGE_MARKER] = style }
+    suspend fun setInfiniteScroll(value: Boolean) = edit { it[Keys.INFINITE_SCROLL] = value }
     suspend fun setShowNotificationDots(value: Boolean) = edit { it[Keys.SHOW_NOTIF_DOTS] = value }
     suspend fun setNotificationDotCount(value: Boolean) = edit { it[Keys.NOTIF_DOT_COUNT] = value }
     suspend fun setNotificationDotScale(value: Float) =
@@ -579,6 +581,7 @@ class SettingsRepository @Inject constructor(
         val DOCK_OPACITY = floatPreferencesKey("dock_opacity")
         val SHOW_PAGE_INDICATOR = booleanPreferencesKey("show_page_indicator")
         val HOME_PAGE_MARKER = stringPreferencesKey("home_page_marker")
+        val INFINITE_SCROLL = booleanPreferencesKey("infinite_scroll")
         val SHOW_NOTIF_DOTS = booleanPreferencesKey("show_notif_dots")
         val NOTIF_DOT_COUNT = booleanPreferencesKey("notif_dot_count")
         val NOTIF_DOT_SCALE = floatPreferencesKey("notif_dot_scale")
@@ -650,7 +653,7 @@ class SettingsRepository @Inject constructor(
             "desktop_locked", "show_frequent_apps", "drawer_opens_at_top", "show_status_bar",
             "show_weather", "hide_system_status_bar", "double_tap_lock", "widget_tonal_background",
             "two_line_home_labels", "two_line_drawer_labels", "people_batch_enabled", "people_show_apps",
-            "network_place_names",
+            "network_place_names", "infinite_scroll",
         )
         val STRING_KEYS = setOf(
             "dock_favorites", "hidden_apps", "custom_labels", "drawer_folders",

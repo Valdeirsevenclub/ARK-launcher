@@ -19,6 +19,9 @@ data class LauncherSettings(
     /** How the page dots mark the home page: a ring around its dot ([MARKER_RING]) or a house glyph
      *  in place of the dot ([MARKER_HOUSE]). */
     val homePageMarker: String = MARKER_RING,
+    /** Swiping past the last home page continues to the first one, and back from the first to the
+     *  last (unless the left-edge app takes that swipe). Off keeps the bounce back from the end. */
+    val infiniteScroll: Boolean = true,
     val showNotificationDots: Boolean = true,
     /** When notification dots are on: true shows the count (Nova-style), false shows a plain dot. */
     val notificationDotCount: Boolean = true,

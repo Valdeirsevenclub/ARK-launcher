@@ -94,6 +94,7 @@
     <string name="home_options_page_limit">Достигнуто максимальное число страниц</string>
     <string name="home_options_page_not_empty">Страница не пустая</string>
     <string name="home_options_page_failed">Не удалось изменить страницу</string>
+    <string name="home_last_page_hint">Последняя страница</string>
     <string name="widget_remove">Удалить виджет</string>
     <string name="widget_unavailable">Виджет недоступен</string>
     <string name="widget_restore_tap">Нажмите, чтобы настроить</string>

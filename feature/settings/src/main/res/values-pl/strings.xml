@@ -24,6 +24,8 @@
     <string name="settings_home_page_marker">Oznaczenie strony głównej</string>
     <string name="settings_home_page_marker_ring">Pierścień wokół kropki</string>
     <string name="settings_home_page_marker_house">Ikona domu</string>
+    <string name="settings_infinite_scroll">Nieskończone przewijanie</string>
+    <string name="settings_infinite_scroll_desc">Po ostatniej stronie znów pojawia się pierwsza</string>
     <string name="settings_notifications">Powiadomienia</string>
     <string name="settings_notif_dots">Kropki powiadomień</string>
     <string name="settings_notif_count">Pokaż liczbę</string>

@@ -490,4 +490,31 @@ class SettingsRepositoryTest {
         assertThat(s.twoLineHomeLabels).isFalse()
         assertThat(s.twoLineDrawerLabels).isTrue()
     }
+
+    @Test
+    fun `infiniteScroll defaults to on and round-trips`() = runTest {
+        val repo = newRepository()
+        assertThat(repo.settings.first().infiniteScroll).isTrue()
+
+        repo.setInfiniteScroll(false)
+        assertThat(repo.settings.first().infiniteScroll).isFalse()
+
+        repo.setInfiniteScroll(true)
+        assertThat(repo.settings.first().infiniteScroll).isTrue()
+    }
+
+    @Test
+    fun `infiniteScroll survives a backup round-trip and rejects a wrong type`() = runTest {
+        val repo = newRepository()
+        repo.setInfiniteScroll(false)
+        val exported = repo.exportRaw()
+        assertThat(exported).containsEntry("infinite_scroll", false)
+
+        val restored = newRepository()
+        restored.importRaw(exported)
+        assertThat(restored.settings.first().infiniteScroll).isFalse()
+
+        restored.importRaw(mapOf("infinite_scroll" to "no"))
+        assertThat(restored.settings.first().infiniteScroll).isTrue() // must not throw ClassCastException
+    }
 }

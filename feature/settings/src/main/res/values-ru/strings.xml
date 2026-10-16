@@ -24,6 +24,8 @@
     <string name="settings_home_page_marker">Отметка главной страницы</string>
     <string name="settings_home_page_marker_ring">Кольцо вокруг точки</string>
     <string name="settings_home_page_marker_house">Значок дома</string>
+    <string name="settings_infinite_scroll">Бесконечная прокрутка</string>
+    <string name="settings_infinite_scroll_desc">После последней страницы снова идёт первая</string>
     <string name="settings_notifications">Уведомления</string>
     <string name="settings_notif_dots">Значки уведомлений</string>
     <string name="settings_notif_count">Показывать количество</string>

@@ -94,6 +94,7 @@
     <string name="home_options_page_limit">Osiągnięto już limit stron</string>
     <string name="home_options_page_not_empty">Strona nie jest pusta</string>
     <string name="home_options_page_failed">Nie udało się zmienić strony</string>
+    <string name="home_last_page_hint">Ostatnia strona</string>
     <string name="widget_remove">Usuń widżet</string>
     <string name="widget_unavailable">Widżet niedostępny</string>
     <string name="widget_restore_tap">Dotknij, aby skonfigurować</string>

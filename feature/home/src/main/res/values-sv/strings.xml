@@ -94,6 +94,7 @@
     <string name="home_options_page_limit">Sidgränsen är redan nådd</string>
     <string name="home_options_page_not_empty">Sidan är inte tom</string>
     <string name="home_options_page_failed">Det gick inte att ändra sidan</string>
+    <string name="home_last_page_hint">Sista sidan</string>
     <string name="widget_remove">Ta bort widget</string>
     <string name="widget_unavailable">Widgeten är inte tillgänglig</string>
     <string name="widget_restore_tap">Tryck för att konfigurera</string>

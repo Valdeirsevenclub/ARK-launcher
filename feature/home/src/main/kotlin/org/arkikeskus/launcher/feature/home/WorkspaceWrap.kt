@@ -1,0 +1,175 @@
+package org.arkikeskus.launcher.feature.home
+
+import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.rememberOverscrollEffect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.unit.Velocity
+import kotlin.math.abs
+
+/*
+ * Infinite scrolling on the home pager. The pager always carries one trailing page after the last
+ * real one (index == pageCount), the empty page an icon can be dragged onto. Outside a drag, with
+ * infinite scrolling on, that tail shows a copy of page 0 instead: swiping on from the last page
+ * slides page 0 in, and once the pager settles on the copy it swaps to the real page 0 in place.
+ * The drag code never sees the copy — any drag turns the tail back into the empty new page.
+ */
+
+/**
+ * Whether the trailing page shows a copy of page 0. Never during a drag, and not after one until
+ * the pager has settled on a real page ([newPageLatched]), so a drop onto the new page never shows
+ * page 0 before the dropped item lands. A single page has nothing to wrap to.
+ */
+internal fun tailShowsPageZero(
+    infiniteScroll: Boolean,
+    pageCount: Int,
+    dragActive: Boolean,
+    newPageLatched: Boolean,
+): Boolean = infiniteScroll && pageCount >= 2 && !dragActive && !newPageLatched
+
+/**
+ * Pages to jump when a user drag runs past an end of the pager, or 0. Back from page 0 it jumps
+ * forward onto the copy of page 0 (the pager can then keep scrolling back to the last page) —
+ * unless the left-edge app owns that swipe. On past the copy it jumps back onto the real page 0.
+ */
+internal fun wrapJumpPages(
+    atStart: Boolean,
+    atEnd: Boolean,
+    pageCount: Int,
+    tailShowsPageZero: Boolean,
+    leftEdgeAction: Boolean,
+): Int = when {
+    !tailShowsPageZero -> 0
+    atStart && !leftEdgeAction -> pageCount
+    atEnd -> -pageCount
+    else -> 0
+}
+
+/** The dot to light for [pagerPage]: the copy of page 0 lights page 0's; the empty new page none. */
+internal fun dotForPagerPage(pagerPage: Int, pageCount: Int, tailShowsPageZero: Boolean): Int =
+    if (tailShowsPageZero && pagerPage >= pageCount) 0 else pagerPage
+
+/** Whether any of the copy of page 0 is on screen, from the pager's continuous [position]. */
+internal fun tailCopyOnScreen(position: Float, pageCount: Int): Boolean =
+    position > pageCount - 1 + POSITION_EPSILON
+
+/**
+ * Whether this instance of [page] hosts its widgets' views. A view can sit in only one parent, and
+ * page 0 can be composed twice (the real page and the copy at the tail, e.g. while one is only
+ * prefetched), so its views follow whichever instance is on screen. Other pages exist once.
+ */
+internal fun ownsWidgetViews(page: Int, isTailCopy: Boolean, copyOnScreen: Boolean): Boolean =
+    page != 0 || isTailCopy == copyOnScreen
+
+/**
+ * The pager's overscroll: the platform effect (the edge stretch), plus the wrap-around. When a user
+ * drag runs past an end it moves the pager — inside the same drag — by whole pages
+ * ([wrapJumpPages]): from page 0 onto the copy at the tail, from the copy back onto page 0. Both
+ * show the same content, so the jump is invisible and the rest of the drag scrolls on from there.
+ * [PagerState.dispatchRawDelta] moves the pager without cancelling the drag that is scrolling it.
+ * [onWrap] runs just before a jump (true = onto the copy), while the pager is still where it was.
+ */
+@Composable
+internal fun rememberWrapAroundOverscroll(
+    pagerState: PagerState,
+    pageCount: Int,
+    tailShowsPageZero: Boolean,
+    leftEdgeAction: Boolean,
+    onWrap: (toTailCopy: Boolean) -> Unit = {},
+): OverscrollEffect {
+    val platform = rememberOverscrollEffect()
+    val config = rememberUpdatedState(WrapConfig(pageCount, tailShowsPageZero, leftEdgeAction, onWrap))
+    return remember(pagerState, platform) { WrapAroundOverscroll(pagerState, platform) { config.value } }
+}
+
+private class WrapConfig(
+    val pageCount: Int,
+    val tailShowsPageZero: Boolean,
+    val leftEdgeAction: Boolean,
+    val onWrap: (toTailCopy: Boolean) -> Unit,
+)
+
+private class WrapAroundOverscroll(
+    private val pagerState: PagerState,
+    private val platform: OverscrollEffect?,
+    private val config: () -> WrapConfig,
+) : OverscrollEffect {
+    override fun applyToScroll(
+        delta: Offset,
+        source: NestedScrollSource,
+        performScroll: (Offset) -> Offset,
+    ): Offset {
+        val wrappingScroll: (Offset) -> Offset = { available ->
+            val consumed = performScroll(available)
+            val leftover = available - consumed
+            if (source != NestedScrollSource.UserInput || leftover == Offset.Zero) {
+                consumed
+            } else {
+                val c = config()
+                val pages = wrapJumpPages(
+                    atStart = !pagerState.canScrollBackward,
+                    atEnd = !pagerState.canScrollForward,
+                    pageCount = c.pageCount,
+                    tailShowsPageZero = c.tailShowsPageZero,
+                    leftEdgeAction = c.leftEdgeAction,
+                )
+                val stride = pagerState.layoutInfo.pageSize + pagerState.layoutInfo.pageSpacing
+                if (pages == 0 || stride <= 0) {
+                    consumed
+                } else {
+                    c.onWrap(pages > 0)
+                    pagerState.dispatchRawDelta(pages * stride.toFloat())
+                    consumed + performScroll(leftover)
+                }
+            }
+        }
+        return platform?.applyToScroll(delta, source, wrappingScroll) ?: wrappingScroll(delta)
+    }
+
+    override suspend fun applyToFling(velocity: Velocity, performFling: suspend (Velocity) -> Velocity) {
+        if (platform != null) platform.applyToFling(velocity, performFling) else performFling(velocity)
+    }
+
+    override val isInProgress: Boolean
+        get() = platform?.isInProgress ?: false
+
+    override val node: DelegatableNode
+        get() = platform?.node ?: super.node
+}
+
+/**
+ * Swaps the copy of page 0 at the tail for the real page 0 once the pager rests on it: same
+ * content, no animation, so it looks like page 0 slid in. [onBeforeSwap] runs just before, while
+ * the pager is still on the copy.
+ */
+@Composable
+internal fun PageZeroCopySwap(
+    pagerState: PagerState,
+    pageCount: Int,
+    tailShowsPageZero: Boolean,
+    onBeforeSwap: () -> Unit = {},
+) {
+    val latestOnBeforeSwap by rememberUpdatedState(onBeforeSwap)
+    LaunchedEffect(pagerState, pageCount, tailShowsPageZero) {
+        if (!tailShowsPageZero) return@LaunchedEffect
+        snapshotFlow {
+            !pagerState.isScrollInProgress && pagerState.currentPage == pageCount &&
+                abs(pagerState.currentPageOffsetFraction) < POSITION_EPSILON
+        }.collect { restsOnCopy ->
+            if (restsOnCopy) {
+                latestOnBeforeSwap()
+                pagerState.scrollToPage(0)
+            }
+        }
+    }
+}
+
+private const val POSITION_EPSILON = 0.001f

@@ -24,6 +24,8 @@
     <string name="settings_home_page_marker">Ana sayfa işareti</string>
     <string name="settings_home_page_marker_ring">Noktanın etrafında halka</string>
     <string name="settings_home_page_marker_house">Ev simgesi</string>
+    <string name="settings_infinite_scroll">Sonsuz kaydırma</string>
+    <string name="settings_infinite_scroll_desc">Son sayfadan sonra yeniden ilk sayfa gelir</string>
     <string name="settings_notifications">Bildirimler</string>
     <string name="settings_notif_dots">Bildirim noktaları</string>
     <string name="settings_notif_count">Sayıyı göster</string>

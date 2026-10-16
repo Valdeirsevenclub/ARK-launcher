@@ -235,6 +235,12 @@ fun SettingsScreen(
                         ),
                     ) { showHomeMarkerPicker = true }
                 }
+                SwitchRow(
+                    stringResource(R.string.settings_infinite_scroll),
+                    stringResource(R.string.settings_infinite_scroll_desc),
+                    s.infiniteScroll,
+                    viewModel::setInfiniteScroll,
+                )
                 SwitchRow(stringResource(R.string.settings_lock_desktop), s.desktopLocked, viewModel::setDesktopLocked)
                 SwitchRow(
                     stringResource(R.string.settings_hide_status_bar),
