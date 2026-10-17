@@ -1,0 +1,7 @@
+Added
+- Infinite scrolling: after the last home page comes the first again, both ways. On by default (Settings > Home screen).
+- "Not now" on the set-as-default card.
+
+Changed
+- With infinite scrolling off, a swipe at either end of the pages stops with a stretch and "No more pages" instead of sliding onto an empty page. TalkBack and Switch Access paging does the same.
+- The page dots have a soft shadow, so they show on light wallpapers too.
