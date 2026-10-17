@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -1859,12 +1860,13 @@ internal fun PageDots(
                     painter = painterResource(LauncherIcons.Home),
                     contentDescription = null,
                     tint = color,
-                    modifier = Modifier.size(13.dp).testTag(PAGE_DOT_HOUSE_TAG),
+                    modifier = Modifier.size(13.dp).pageDotHalo().testTag(PAGE_DOT_HOUSE_TAG),
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(if (isHome) 9.dp else 7.dp)
+                        .pageDotHalo()
                         .then(if (isHome) Modifier.border(1.5.dp, color, CircleShape).padding(2.dp) else Modifier)
                         .background(color = color, shape = CircleShape)
                         .testTag(PAGE_DOT_TAG),
@@ -1873,6 +1875,25 @@ internal fun PageDots(
         }
     }
 }
+
+/** A soft dark halo behind a page dot or the house, so the white markers read on a light wallpaper
+ *  too — the page-dot twin of the widgets' text shadow. On a dark wallpaper it melts into it. */
+private fun Modifier.pageDotHalo(): Modifier = drawBehind {
+    val radius = size.minDimension / 2f + PAGE_DOT_HALO_EXTRA.toPx()
+    drawCircle(
+        brush = Brush.radialGradient(
+            0f to Color.Black.copy(alpha = PAGE_DOT_HALO_ALPHA),
+            1f to Color.Transparent,
+            center = center,
+            radius = radius,
+        ),
+        radius = radius,
+        center = center,
+    )
+}
+
+private val PAGE_DOT_HALO_EXTRA = 5.dp
+private const val PAGE_DOT_HALO_ALPHA = 0.5f
 
 /** Widget bounds applied optimistically (by row id) until the DB flow catches up — spans included,
  *  so an edit-frame resize shows on the hosted content immediately, not only after the round-trip. */
