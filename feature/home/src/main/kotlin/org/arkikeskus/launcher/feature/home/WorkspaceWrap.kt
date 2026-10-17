@@ -9,11 +9,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.semantics.ScrollAxisRange
+import androidx.compose.ui.semantics.horizontalScrollAxisRange
+import androidx.compose.ui.semantics.pageLeft
+import androidx.compose.ui.semantics.pageRight
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Velocity
 import kotlin.math.abs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /*
  * Infinite scrolling on the home pager. The pager always carries one trailing page after the last
@@ -181,6 +189,86 @@ private class WrapAroundOverscroll(
     override val node: DelegatableNode
         get() = platform?.node ?: super.node
 }
+
+/**
+ * Accessibility paging (TalkBack, Switch Access) that does at an end what a swipe does there, while
+ * [enabled] (the pager scrolls). The pager's own page actions know nothing of the wrap or the drop
+ * page, and Compose offers the platform's scroll forward / backward, and turns them into those page
+ * actions, only while the scroll position has room that way.
+ * - Page 0 may wrap back ([wrapJumpPages]): the position reads one page further in, and paging back
+ *   from page 0 jumps onto the copy of page 0 at the tail (the same content, so the jump is unseen),
+ *   then slides back onto the last page. [onWrap] runs just before the jump, in the same scroll, so a
+ *   jump that never happens (another scroll won) never announces one. Paging on needs nothing: the
+ *   copy is a real pager page.
+ * - Without the copy, the empty page past the last one is for drags only: the position ends at the
+ *   last page, and paging on from it only calls [onEndReached] — as paging back from page 0 does,
+ *   unless the left-edge app owns that end.
+ */
+internal fun Modifier.wrapAroundPagingSemantics(
+    pagerState: PagerState,
+    pageCount: Int,
+    enabled: Boolean,
+    tailShowsPageZero: Boolean,
+    leftEdgeAction: Boolean,
+    scope: CoroutineScope,
+    onWrap: () -> Unit,
+    onEndReached: () -> Unit,
+): Modifier = when {
+    !enabled -> this
+    !tailShowsPageZero -> semantics {
+        val lastPage = pageCount - 1
+        horizontalScrollAxisRange = ScrollAxisRange(
+            value = {
+                val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                position.coerceAtMost(lastPage.toFloat()) * pagerState.stride()
+            },
+            maxValue = { lastPage * pagerState.stride() },
+        )
+        pageLeft {
+            if (pagerState.pageBack(scope)) return@pageLeft true
+            if (!leftEdgeAction) onEndReached()
+            false
+        }
+        pageRight {
+            val next = pagerState.currentPage + 1
+            if (next > lastPage) {
+                onEndReached()
+                return@pageRight false
+            }
+            scope.launch { pagerState.animateScrollToPage(next) }
+            true
+        }
+    }
+    wrapJumpPages(atStart = true, atEnd = false, pageCount, tailShowsPageZero, leftEdgeAction) != 0 -> semantics {
+        horizontalScrollAxisRange = ScrollAxisRange(
+            value = { (pagerState.currentPage + pagerState.currentPageOffsetFraction + 1f) * pagerState.stride() },
+            maxValue = { (pageCount + 1) * pagerState.stride() },
+        )
+        pageLeft {
+            if (pagerState.pageBack(scope)) return@pageLeft true
+            val stride = pagerState.stride()
+            if (stride <= 0f) return@pageLeft false
+            scope.launch {
+                pagerState.scroll {
+                    onWrap()
+                    scrollBy(pageCount * stride)
+                }
+                pagerState.animateScrollToPage(pageCount - 1)
+            }
+            true
+        }
+    }
+    else -> this
+}
+
+/** The pager's own page back: false on page 0. */
+private fun PagerState.pageBack(scope: CoroutineScope): Boolean {
+    if (!canScrollBackward) return false
+    scope.launch { animateScrollToPage(currentPage - 1) }
+    return true
+}
+
+private fun PagerState.stride(): Float = (layoutInfo.pageSize + layoutInfo.pageSpacing).toFloat()
 
 /**
  * Swaps the copy of page 0 at the tail for the real page 0 once the pager rests on it: same

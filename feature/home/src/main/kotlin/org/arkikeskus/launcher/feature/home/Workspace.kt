@@ -669,9 +669,10 @@ internal fun Workspace(
         }.collect { copyOnScreen = it }
     }
     PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
-    // A swipe that ran into an end (on past the last page, or back on page 0 when it neither wraps nor
-    // belongs to the left-edge app), or the retreat's bounce off the empty page past the last one. Each
-    // shows PageEndHint, but not during a drag nor just after one.
+    // A swipe or an accessibility page action that ran into an end (on past the last page, or back on
+    // page 0 when it neither wraps nor belongs to the left-edge app), or the retreat's bounce off the
+    // empty page past the last one. Each shows PageEndHint; the swipes and page actions say so the same
+    // way at both ends, but not during a drag nor just after one.
     var pageEndBounces by remember { mutableIntStateOf(0) }
     fun sayNoMorePages() {
         if (!dragInProgress() && !newPageLatched) pageEndBounces++
@@ -745,9 +746,10 @@ internal fun Workspace(
 
     Box(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val pagerScrolls = dragging == null && draggingLocal == null && editingWidget == null && widgetDragController.active == null
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = dragging == null && draggingLocal == null && editingWidget == null && widgetDragController.active == null,
+                userScrollEnabled = pagerScrolls,
                 // While an item is MOVING, keep every page composed so flipping to another page can't
                 // dispose the dragged item's node (which would cancel the in-progress drag); this also
                 // covers a drawer/dock→home drag, so its target page renders as pages flip. A still
@@ -768,6 +770,17 @@ internal fun Workspace(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    // Paging with TalkBack or Switch Access does at an end what a swipe does there.
+                    .wrapAroundPagingSemantics(
+                        pagerState = pagerState,
+                        pageCount = pageCount,
+                        enabled = pagerScrolls,
+                        tailShowsPageZero = tailCopy,
+                        leftEdgeAction = leftEdgeActionEnabled,
+                        scope = scope,
+                        onWrap = { copyOnScreen = true },
+                        onEndReached = ::sayNoMorePages,
+                    )
                     .onSizeChanged { gridSize = it }
                     .onGloballyPositioned { dragController.gridBounds = it.boundsInRoot() },
             ) { pagerPage ->

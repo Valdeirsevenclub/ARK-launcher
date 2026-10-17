@@ -4,17 +4,28 @@ import android.app.Application
 import android.appwidget.AppWidgetHostView
 import android.content.ComponentName
 import android.os.Process
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.AccessibilityAction
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.down
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.moveBy
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
@@ -30,7 +41,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Infinite scrolling end to end on the real workspace (empty pages), observed through the page
  *  the workspace publishes to the drag controller. */
@@ -229,6 +242,136 @@ class WorkspaceInfiniteScrollTest {
         assertThat(drag.currentPage).isEqualTo(2)
     }
 
+    /** The pager's own node: the one that carries the accessibility page actions. */
+    private fun pagerNode() = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.PageLeft))
+
+    @Test
+    fun theAccessibilityPageBackOnTheFirstPageCarriesOnToTheLast() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
+        pagerNode().performSemanticsAction(SemanticsActions.PageLeft)
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(2)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // the platform delegate finds its nodes with Region
+    fun theAccessibilityScrollBackOnTheFirstPageCarriesOnToTheLast() {
+        // The platform action TalkBack and Switch Access send. Compose offers it, and turns it into
+        // the page action, only while the scroll position says there is room to go back.
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
+        compose.runOnUiThread {
+            shadowOf(RuntimeEnvironment.getApplication().getSystemService(AccessibilityManager::class.java)).setEnabled(true)
+            composeView().forceAccessibilityForTesting(true)
+        }
+        val id = pagerNode().fetchSemanticsNode().id
+        compose.runOnIdle {
+            val provider = composeView().view.accessibilityNodeProvider
+            val actions = provider.createAccessibilityNodeInfo(id)!!.actionList.map { it.id }
+            assertThat(actions).contains(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+            assertThat(provider.performAction(id, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, null)).isTrue()
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(2)
+    }
+
+    @Test
+    fun theAccessibilityPageBackFromAMiddlePageGoesBackOnePage() {
+        setWorkspace(pageCount = 3, homePage = 1, infiniteScroll = true)
+        pagerNode().performSemanticsAction(SemanticsActions.PageLeft)
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+    }
+
+    @Test
+    fun theLeftEdgeAppKeepsTheAccessibilityPageBackFromWrapping() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true, leftEdgeAction = true)
+        pagerNode().performSemanticsAction(SemanticsActions.PageLeft)
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+    }
+
+    @Test
+    fun withInfiniteScrollOffTheAccessibilityPageBackStaysOnTheFirstPage() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false)
+        pagerNode().performSemanticsAction(SemanticsActions.PageLeft)
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+    }
+
+    /** Runs the pager's accessibility page action [key] and returns whether it was handled. */
+    private fun pageAction(key: SemanticsPropertyKey<AccessibilityAction<() -> Boolean>>): Boolean {
+        val action = checkNotNull(pagerNode().fetchSemanticsNode().config[key].action)
+        return compose.runOnUiThread { action() }
+    }
+
+    @Test
+    fun theAccessibilityPageOnFromTheLastPageCarriesOnToTheFirst() {
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = true)
+        assertThat(pageAction(SemanticsActions.PageRight)).isTrue()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+    }
+
+    @Test
+    fun withInfiniteScrollOffTheAccessibilityPageOnStopsAtTheLastPageAndSaysSo() {
+        // Like a swipe: never onto the empty drop page.
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        assertThat(pageAction(SemanticsActions.PageRight)).isFalse()
+        compose.mainClock.advanceTimeBy(100)
+        assertThat(drag.currentPage).isEqualTo(2)
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
+    }
+
+    @Test
+    fun aSinglePageAccessibilityPageOnStaysAndSaysSo() {
+        setWorkspace(pageCount = 1, homePage = 0, infiniteScroll = true)
+        assertThat(pageAction(SemanticsActions.PageRight)).isFalse()
+        compose.mainClock.advanceTimeBy(100)
+        assertThat(drag.currentPage).isEqualTo(0)
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
+    }
+
+    @Test
+    fun withInfiniteScrollOffTheAccessibilityPageBackOnTheFirstPageSaysSo() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false)
+        assertThat(pageAction(SemanticsActions.PageLeft)).isFalse()
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
+    }
+
+    @Test
+    fun theLeftEdgeAppGetsNoEndOfPagesHintOnTheAccessibilityPageBack() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = false, leftEdgeAction = true)
+        assertThat(pageAction(SemanticsActions.PageLeft)).isFalse()
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // the platform delegate finds its nodes with Region
+    fun withInfiniteScrollOffScrollingOnIsNotOfferedOnTheLastPage() {
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        compose.runOnUiThread {
+            shadowOf(RuntimeEnvironment.getApplication().getSystemService(AccessibilityManager::class.java)).setEnabled(true)
+            composeView().forceAccessibilityForTesting(true)
+        }
+        val id = pagerNode().fetchSemanticsNode().id
+        compose.runOnIdle {
+            val actions = composeView().view.accessibilityNodeProvider.createAccessibilityNodeInfo(id)!!.actionList.map { it.id }
+            assertThat(actions).contains(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+            assertThat(actions).doesNotContain(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+        }
+    }
+
+    private fun composeView(): ViewRootForTest {
+        fun find(view: View): ViewRootForTest? = when (view) {
+            is ViewRootForTest -> view
+            is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { find(view.getChildAt(it)) }
+            else -> null
+        }
+        return checkNotNull(find((compose as AndroidComposeTestRule<*, *>).activity.window.decorView))
+    }
+
     @Test
     fun wrappingBackSaysNothing() {
         setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
@@ -260,11 +403,11 @@ class WorkspaceInfiniteScrollTest {
      *  to it wherever it is on screen — on the real page 0 and on its copy at the tail. */
     private lateinit var hostView: AppWidgetHostView
 
-    private fun setWorkspaceWithScrollableWidgetOnPageZero() {
+    private fun setWorkspaceWithScrollableWidgetOnPageZero(homePage: Int = 2) {
         hostView = AppWidgetHostView(RuntimeEnvironment.getApplication())
         setWorkspace(
             pageCount = 3,
-            homePage = 2,
+            homePage = homePage,
             infiniteScroll = true,
             entries = listOf(PlacedWidget(WIDGET_ROW, WIDGET_ID, ComponentName("p", "p.Widget"), page = 0, cellX = 0, cellY = 0, spanX = 4, spanY = 3)),
             widgetViews = mapOf(WIDGET_ID to hostView),
@@ -285,6 +428,17 @@ class WorkspaceInfiniteScrollTest {
         assertThat(hostView.parent).isNotNull()
         assertThat(hostView.isAttachedToWindow).isTrue()
         compose.onNodeWithTag("workspace").performTouchInput { up() }
+    }
+
+    @Test
+    fun theCopyOfPageZeroHostsItsWidgetWhileTheAccessibilityPageBackWraps() {
+        setWorkspaceWithScrollableWidgetOnPageZero(homePage = 0)
+        pagerNode().performSemanticsAction(SemanticsActions.PageLeft)
+        compose.mainClock.advanceTimeBy(100) // onto the copy, and sliding from it back onto the last page
+        assertThat(hostView.isAttachedToWindow).isTrue()
+        val rects = registeredRects()
+        assertThat(rects).hasSize(1)
+        assertThat(rects.single().left).isGreaterThan(0f) // the copy's widget, sliding out to the right
     }
 
     @Test
