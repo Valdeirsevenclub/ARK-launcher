@@ -4,6 +4,7 @@
     <string name="onboarding_title">Willkommen bei ARK-launcher</string>
     <string name="onboarding_text">Lege ARK-launcher als Standard-Launcher fest, um loszulegen. Wische dann nach oben, um deine Apps zu öffnen, und halte eine freie Stelle gedrückt, um zu den Einstellungen zu gelangen.</string>
     <string name="onboarding_set_default">Als Standard-Launcher festlegen</string>
+    <string name="default_reminder_not_now">Nicht jetzt</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Uhr &amp; Kalender</string>
     <string name="smartspace_allow_calendar">Tippe, um den Kalenderzugriff zuzulassen</string>

@@ -4,6 +4,7 @@
     <string name="onboarding_title">Bienvenue dans ARK-launcher</string>
     <string name="onboarding_text">Pour commencer, définissez ARK-launcher comme lanceur par défaut. Ensuite, balayez vers le haut pour ouvrir vos applications et appuyez de manière prolongée sur un espace vide pour accéder aux paramètres.</string>
     <string name="onboarding_set_default">Définir comme lanceur par défaut</string>
+    <string name="default_reminder_not_now">Pas maintenant</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Horloge et agenda</string>
     <string name="smartspace_allow_calendar">Appuyez pour autoriser l\'accès à l\'agenda</string>

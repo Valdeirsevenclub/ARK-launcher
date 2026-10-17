@@ -4,6 +4,7 @@
     <string name="onboarding_title">Witaj w aplikacji ARK-launcher</string>
     <string name="onboarding_text">Na początek ustaw ARK-launcher jako domyślny launcher. Potem przesuń w górę, aby otworzyć aplikacje, i przytrzymaj puste miejsce, aby przejść do ustawień.</string>
     <string name="onboarding_set_default">Ustaw jako domyślny launcher</string>
+    <string name="default_reminder_not_now">Nie teraz</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Zegar i kalendarz</string>
     <string name="smartspace_allow_calendar">Dotknij, aby zezwolić na dostęp do kalendarza</string>

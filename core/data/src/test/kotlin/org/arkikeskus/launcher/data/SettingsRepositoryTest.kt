@@ -492,6 +492,30 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `the default-launcher reminder shows until it is dismissed, then stays dismissed`() = runTest {
+        val repo = newRepository()
+        assertThat(repo.settings.first().defaultReminderDismissed).isFalse()
+
+        repo.dismissDefaultReminder()
+        assertThat(repo.settings.first().defaultReminderDismissed).isTrue()
+    }
+
+    @Test
+    fun `a dismissed reminder belongs to this device - never exported, kept through a restore`() = runTest {
+        val repo = newRepository()
+        repo.dismissDefaultReminder()
+        assertThat(repo.exportRaw()).doesNotContainKey("default_reminder_dismissed")
+
+        repo.importRaw(mapOf("home_columns" to 5))
+        assertThat(repo.settings.first().defaultReminderDismissed).isTrue()
+
+        // A backup from a device where it was dismissed must not dismiss it here.
+        val fresh = newRepository()
+        fresh.importRaw(mapOf("default_reminder_dismissed" to true))
+        assertThat(fresh.settings.first().defaultReminderDismissed).isFalse()
+    }
+
+    @Test
     fun `infiniteScroll defaults to on and round-trips`() = runTest {
         val repo = newRepository()
         assertThat(repo.settings.first().infiniteScroll).isTrue()

@@ -74,6 +74,7 @@ class SettingsRepository @Inject constructor(
             homePageMarker = (p[Keys.HOME_PAGE_MARKER] ?: LauncherSettings.MARKER_RING)
                 .let { if (it == LauncherSettings.MARKER_HOUSE) it else LauncherSettings.MARKER_RING },
             infiniteScroll = p[Keys.INFINITE_SCROLL] ?: true,
+            defaultReminderDismissed = p[Keys.DEFAULT_REMINDER_DISMISSED] ?: false,
             showNotificationDots = p[Keys.SHOW_NOTIF_DOTS] ?: true,
             notificationDotCount = p[Keys.NOTIF_DOT_COUNT] ?: true,
             notificationDotScale = (p[Keys.NOTIF_DOT_SCALE] ?: 1.0f).coerceIn(MIN_DOT_SCALE, MAX_DOT_SCALE),
@@ -461,6 +462,8 @@ class SettingsRepository @Inject constructor(
     suspend fun setDefaultLayoutSeeded() = edit { it[Keys.DEFAULT_LAYOUT_SEEDED] = true }
     suspend fun onboardingDoneOnce(): Boolean = dataStore.data.first()[Keys.ONBOARDING_DONE] ?: false
     suspend fun setOnboardingDone() = edit { it[Keys.ONBOARDING_DONE] = true }
+    /** "Not now" on the home screen's set-as-default card. */
+    suspend fun dismissDefaultReminder() = edit { it[Keys.DEFAULT_REMINDER_DISMISSED] = true }
 
     /** One-time first-run freshness decision, persisted BEFORE any seeding writes so a mid-seed
      *  death can't flip a fresh install into an "updating user". Null = not decided yet. */
@@ -503,6 +506,7 @@ class SettingsRepository @Inject constructor(
             val localLastBackup = prefs[Keys.LOCAL_LAST_BACKUP]
             val layoutSeeded = prefs[Keys.DEFAULT_LAYOUT_SEEDED]
             val onboardingDone = prefs[Keys.ONBOARDING_DONE]
+            val reminderDismissed = prefs[Keys.DEFAULT_REMINDER_DISMISSED]
             val firstRunFresh = prefs[Keys.FIRST_RUN_FRESH]
             val heldNotifications = prefs[Keys.PEOPLE_HELD]
             // Device-local usage stats aren't in the backup (see exportRaw) — preserve this device's.
@@ -530,6 +534,7 @@ class SettingsRepository @Inject constructor(
             if (localLastBackup != null) prefs[Keys.LOCAL_LAST_BACKUP] = localLastBackup
             if (layoutSeeded != null) prefs[Keys.DEFAULT_LAYOUT_SEEDED] = layoutSeeded
             if (onboardingDone != null) prefs[Keys.ONBOARDING_DONE] = onboardingDone
+            if (reminderDismissed != null) prefs[Keys.DEFAULT_REMINDER_DISMISSED] = reminderDismissed
             if (firstRunFresh != null) prefs[Keys.FIRST_RUN_FRESH] = firstRunFresh
             if (heldNotifications != null) prefs[Keys.PEOPLE_HELD] = heldNotifications
             if (appUsage != null) prefs[stringPreferencesKey(AppUsageRepository.USAGE_KEY)] = appUsage
@@ -607,6 +612,7 @@ class SettingsRepository @Inject constructor(
         val STATUS_BAR_SCRIM = floatPreferencesKey("status_bar_scrim")
         val DEFAULT_LAYOUT_SEEDED = booleanPreferencesKey("default_layout_seeded")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val DEFAULT_REMINDER_DISMISSED = booleanPreferencesKey("default_reminder_dismissed")
         val FIRST_RUN_FRESH = stringPreferencesKey("first_run_fresh")
         val PEOPLE_PRIVACY = stringPreferencesKey("people_privacy")
         val PINNED_PEOPLE = stringPreferencesKey("pinned_people")
@@ -700,6 +706,7 @@ class SettingsRepository @Inject constructor(
             "drive_interval_days", "drive_wifi_only", "drive_charging_only",
             "auto_update_enabled", "update_last_check", "update_last_notified_version",
             "default_layout_seeded", "onboarding_done", "first_run_fresh", "people_held_notifications",
+            "default_reminder_dismissed",
         )
     }
 }

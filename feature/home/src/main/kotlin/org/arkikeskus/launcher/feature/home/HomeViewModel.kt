@@ -413,6 +413,11 @@ class HomeViewModel @Inject constructor(
         appRepository.apps.first().firstOrNull { it.key == key }?.let { launch(it) }
     }
 
+    /** "Not now" on the set-as-default card: hide it on this device from now on. */
+    fun dismissDefaultReminder() {
+        viewModelScope.launch { settingsRepository.dismissDefaultReminder() }
+    }
+
     /** Launches a pinned deep shortcut placed on the home screen. */
     fun launchShortcut(shortcut: PlacedShortcut) =
         AppShortcuts.startById(context, shortcut.packageName, shortcut.shortcutId, shortcut.userSerial)

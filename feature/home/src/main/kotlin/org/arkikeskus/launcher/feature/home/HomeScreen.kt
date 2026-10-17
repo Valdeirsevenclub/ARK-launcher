@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -700,42 +701,20 @@ fun HomeScreen(
                 }
             }
         }
-        // Not-default reminder card: shown until ARK-launcher is the default home — but never under
-        // the full first-run intro, which has its own set-as-default step.
-        if (!isDefaultLauncher && !showOnboarding) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(28.dp),
-                shadowElevation = 8.dp,
+        // Not-default reminder card: shown until ARK-launcher is the default home or the user says
+        // "Not now" (Settings keeps the set-as-default row) — but never under the full first-run
+        // intro, which has its own set-as-default step.
+        if (showDefaultReminder(uiState.loaded, isDefaultLauncher, showOnboarding, settings.defaultReminderDismissed)) {
+            DefaultLauncherReminder(
+                onSetDefault = {
+                    runCatching { setDefaultLauncher.launch(DefaultLauncher.requestIntent(context)) }
+                },
+                onNotNow = viewModel::dismissDefaultReminder,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .statusBarsPadding()
                     .padding(horizontal = 28.dp),
-            ) {
-                Column(
-                    modifier = Modifier.padding(28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = stringResource(R.string.onboarding_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = stringResource(R.string.onboarding_text),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Button(onClick = {
-                        runCatching { setDefaultLauncher.launch(DefaultLauncher.requestIntent(context)) }
-                    }) {
-                        Text(stringResource(R.string.onboarding_set_default))
-                    }
-                }
-            }
+            )
         }
 
         // The floating dragged icon is drawn by LauncherShell (above the workspace, dock and the app
@@ -1135,3 +1114,53 @@ private data class AppMenuTarget(
 )
 
 /** The long-press menu is the shared [org.arkikeskus.launcher.ui.AppActionPopup] (core/ui). */
+
+/** The card on the home screen while ARK-launcher is not the default home app. */
+@Composable
+internal fun DefaultLauncherReminder(
+    onSetDefault: () -> Unit,
+    onNotNow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(28.dp),
+        shadowElevation = 8.dp,
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.onboarding_text),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onSetDefault) {
+                Text(stringResource(R.string.onboarding_set_default))
+            }
+            // Issue #6: the card covered the middle of home with no way to close it.
+            TextButton(onClick = onNotNow) {
+                Text(stringResource(R.string.default_reminder_not_now))
+            }
+        }
+    }
+}
+
+/**
+ * Whether the set-as-default card shows: only once the home state has [loaded] (until then the
+ * stored "dismissed" still reads its default, and a dismissed card flashed at every cold start), while
+ * ARK-launcher is not the default home, the first-run intro is not up, and the user has not said
+ * "Not now".
+ */
+internal fun showDefaultReminder(loaded: Boolean, isDefault: Boolean, showOnboarding: Boolean, dismissed: Boolean): Boolean =
+    loaded && !isDefault && !showOnboarding && !dismissed

@@ -4,6 +4,7 @@
     <string name="onboarding_title">ARK-launcher\'a hoş geldiniz</string>
     <string name="onboarding_text">Başlamak için ARK-launcher\'ı varsayılan başlatıcınız yapın. Ardından uygulamalarınızı açmak için yukarı kaydırın, ayarlara ulaşmak için de boş bir alanı basılı tutun.</string>
     <string name="onboarding_set_default">Varsayılan başlatıcı yap</string>
+    <string name="default_reminder_not_now">Şimdi değil</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Saat ve takvim</string>
     <string name="smartspace_allow_calendar">Takvim erişimine izin vermek için dokunun</string>

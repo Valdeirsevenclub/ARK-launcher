@@ -4,6 +4,7 @@
     <string name="onboarding_title">Tervetuloa ARK-launcheriin</string>
     <string name="onboarding_text">Aseta ARK-launcher oletuslauncheriksi aloittaaksesi. Sen jälkeen pyyhkäise ylös avataksesi sovellukset ja paina tyhjää kohtaa pitkään päästäksesi asetuksiin.</string>
     <string name="onboarding_set_default">Aseta oletuslauncheriksi</string>
+    <string name="default_reminder_not_now">Ei nyt</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Kello ja kalenteri</string>
     <string name="smartspace_allow_calendar">Salli kalenterin käyttö napauttamalla</string>

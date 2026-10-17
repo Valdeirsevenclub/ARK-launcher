@@ -4,6 +4,7 @@
     <string name="onboarding_title">Boas-vindas ao ARK-launcher</string>
     <string name="onboarding_text">Para começar, defina o ARK-launcher como tela inicial padrão. Depois, deslize para cima para abrir seus apps. Para acessar as configurações, toque e segure um espaço vazio.</string>
     <string name="onboarding_set_default">Definir como tela inicial padrão</string>
+    <string name="default_reminder_not_now">Agora não</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Relógio e agenda</string>
     <string name="smartspace_allow_calendar">Toque para permitir o acesso à agenda</string>

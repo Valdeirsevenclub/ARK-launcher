@@ -4,6 +4,7 @@
     <string name="onboarding_title">Добро пожаловать в ARK-launcher</string>
     <string name="onboarding_text">Чтобы начать, сделайте ARK-launcher лаунчером по умолчанию. Затем проведите вверх, чтобы открыть приложения, а для перехода к настройкам нажмите и удерживайте пустое место на экране.</string>
     <string name="onboarding_set_default">Сделать лаунчером по умолчанию</string>
+    <string name="default_reminder_not_now">Не сейчас</string>
     <string name="widget_builtin_section">ARK-launcher</string>
     <string name="smartspace_widget_name">Часы и календарь</string>
     <string name="smartspace_allow_calendar">Нажмите, чтобы разрешить доступ к календарю</string>
