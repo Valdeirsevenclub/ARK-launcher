@@ -70,6 +70,14 @@ internal fun ownsWidgetViews(page: Int, isTailCopy: Boolean, copyOnScreen: Boole
     page != 0 || isTailCopy == copyOnScreen
 
 /**
+ * How far (in pages) a scroll from [before] to [after] ran past [lastPage] onto the empty drop page,
+ * which a swipe must not reach: 0 when it stayed inside the pages, and 0 when the pager was already on
+ * the drop page (a drag left it there; the workspace's retreat brings it back).
+ */
+internal fun dropPageOverrun(before: Float, after: Float, lastPage: Int): Float =
+    if (before > lastPage + POSITION_EPSILON) 0f else (after - lastPage).coerceAtLeast(0f)
+
+/**
  * The pager's overscroll: the platform effect (the edge stretch), plus the wrap-around. When a user
  * drag runs past an end it moves the pager — inside the same drag — by whole pages
  * ([wrapJumpPages]): from page 0 onto the copy at the tail, from the copy back onto page 0. Both
@@ -77,7 +85,12 @@ internal fun ownsWidgetViews(page: Int, isTailCopy: Boolean, copyOnScreen: Boole
  * [PagerState.dispatchRawDelta] moves the pager without cancelling the drag that is scrolling it.
  * [onWrap] runs just before a jump (true = onto the copy), while the pager is still where it was.
  * [onStartOverscroll] runs for each pull back on page 0 that neither wraps nor belongs to the
- * left-edge app — the start of the pages has no empty page to bounce off, so the pull itself is it.
+ * left-edge app.
+ *
+ * Without the copy, the empty page after the last one is only for dropping icons (drags reach it with
+ * animateScrollToPage, which never comes through here): a swipe or its fling that runs past the last
+ * page is cut back to it ([dropPageOverrun]) and the rest goes to the stretch, exactly like at page 0.
+ * [onEndOverscroll] runs for each such cut of a user drag.
  */
 @Composable
 internal fun rememberWrapAroundOverscroll(
@@ -87,10 +100,11 @@ internal fun rememberWrapAroundOverscroll(
     leftEdgeAction: Boolean,
     onWrap: (toTailCopy: Boolean) -> Unit = {},
     onStartOverscroll: () -> Unit = {},
+    onEndOverscroll: () -> Unit = {},
 ): OverscrollEffect {
     val platform = rememberOverscrollEffect()
     val config = rememberUpdatedState(
-        WrapConfig(pageCount, tailShowsPageZero, leftEdgeAction, onWrap, onStartOverscroll),
+        WrapConfig(pageCount, tailShowsPageZero, leftEdgeAction, onWrap, onStartOverscroll, onEndOverscroll),
     )
     return remember(pagerState, platform) { WrapAroundOverscroll(pagerState, platform) { config.value } }
 }
@@ -101,6 +115,7 @@ private class WrapConfig(
     val leftEdgeAction: Boolean,
     val onWrap: (toTailCopy: Boolean) -> Unit,
     val onStartOverscroll: () -> Unit,
+    val onEndOverscroll: () -> Unit,
 )
 
 private class WrapAroundOverscroll(
@@ -114,12 +129,24 @@ private class WrapAroundOverscroll(
         performScroll: (Offset) -> Offset,
     ): Offset {
         val wrappingScroll: (Offset) -> Offset = { available ->
-            val consumed = performScroll(available)
+            val c = config()
+            val before = position()
+            var consumed = performScroll(available)
+            if (!c.tailShowsPageZero) {
+                val after = position()
+                val overrun = dropPageOverrun(before, after, lastPage = c.pageCount - 1)
+                val stride = pagerState.layoutInfo.pageSize + pagerState.layoutInfo.pageSpacing
+                if (overrun > 0f && stride > 0) {
+                    pagerState.dispatchRawDelta(-overrun * stride)
+                    // What ran onto the drop page was not consumed after all: the stretch takes it.
+                    consumed *= (after - before - overrun) / (after - before)
+                    if (source == NestedScrollSource.UserInput) c.onEndOverscroll()
+                }
+            }
             val leftover = available - consumed
             if (source != NestedScrollSource.UserInput || leftover == Offset.Zero) {
                 consumed
             } else {
-                val c = config()
                 val atStart = !pagerState.canScrollBackward
                 val pages = wrapJumpPages(
                     atStart = atStart,
@@ -141,6 +168,8 @@ private class WrapAroundOverscroll(
         }
         return platform?.applyToScroll(delta, source, wrappingScroll) ?: wrappingScroll(delta)
     }
+
+    private fun position(): Float = pagerState.currentPage + pagerState.currentPageOffsetFraction
 
     override suspend fun applyToFling(velocity: Velocity, performFling: suspend (Velocity) -> Velocity) {
         if (platform != null) platform.applyToFling(velocity, performFling) else performFling(velocity)

@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.os.Process
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
@@ -89,6 +90,18 @@ class WorkspaceInfiniteScrollTest {
         assertThat(drag.currentPage).isEqualTo(homePage)
     }
 
+    /** A dock icon dragged onto the workspace and held at the right edge of the grid. The writes are
+     *  pushed out at once: the test clock alone does not deliver writes made outside a frame. */
+    private fun holdDockDragAtTheRightEdge(token: Any) {
+        compose.runOnUiThread {
+            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), DragSource.Dock, Offset.Zero, token)
+            drag.beginMove()
+            val grid = drag.gridBounds
+            drag.update(Offset(grid.right - 2f, grid.center.y))
+            Snapshot.sendApplyNotifications()
+        }
+    }
+
     private fun swipeOn() = compose.onNodeWithTag("workspace").performTouchInput { swipeLeft() }
     private fun swipeBack() = compose.onNodeWithTag("workspace").performTouchInput { swipeRight() }
 
@@ -124,6 +137,29 @@ class WorkspaceInfiniteScrollTest {
         compose.mainClock.advanceTimeBy(1_000)
         assertThat(drag.currentPage).isEqualTo(2)
         compose.onNodeWithText(NO_MORE_PAGES).assertExists()
+    }
+
+    @Test
+    fun withInfiniteScrollOffAHeldPullPastTheLastPageStaysOnItAndSaysSo() {
+        // Like the first page: the stretch and the hint, never the empty drop page.
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        compose.onNodeWithTag("workspace").performTouchInput {
+            down(center)
+            repeat(16) { moveBy(Offset(-width * 0.05f, 0f)) }
+        }
+        compose.mainClock.advanceTimeBy(100)
+        assertThat(drag.currentPage).isEqualTo(2)
+        compose.onNodeWithText(NO_MORE_PAGES).assertExists()
+        compose.onNodeWithTag("workspace").performTouchInput { up() }
+    }
+
+    @Test
+    fun aDockDragHeldAtTheRightEdgeOfTheLastPageStillOpensTheNewPage() {
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        holdDockDragAtTheRightEdge(Any())
+        compose.mainClock.advanceTimeBy(1_500) // 550 ms dwell, then the flip
+        compose.waitForIdle()
+        assertThat(drag.currentPage).isEqualTo(3)
     }
 
     @Test
@@ -180,16 +216,15 @@ class WorkspaceInfiniteScrollTest {
         setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = true)
         val token = Any()
         // A dock→home drag held at the right edge of the last page flips onto the empty new page…
-        compose.runOnIdle {
-            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), DragSource.Dock, Offset.Zero, token)
-            drag.beginMove()
-            val grid = drag.gridBounds
-            drag.update(Offset(grid.right - 2f, grid.center.y))
-        }
+        holdDockDragAtTheRightEdge(token)
         // …(550 ms dwell, then the flip animates) and ends while that flip is still running.
         compose.mainClock.advanceTimeBy(650)
-        compose.runOnIdle { drag.stop(token) }
+        compose.runOnUiThread {
+            drag.stop(token)
+            Snapshot.sendApplyNotifications() // seen at the next frame, mid-flip
+        }
         compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
         // The new page was the drag's target, not a copy of page 0: it bounces back as before.
         assertThat(drag.currentPage).isEqualTo(2)
     }

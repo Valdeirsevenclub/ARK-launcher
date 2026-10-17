@@ -669,9 +669,13 @@ internal fun Workspace(
         }.collect { copyOnScreen = it }
     }
     PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
-    // A plain swipe that ran into an end: the bounce off the empty page past the last one, or a pull
-    // back on page 0 that neither wraps nor belongs to the left-edge app. Each shows PageEndHint.
+    // A swipe that ran into an end (on past the last page, or back on page 0 when it neither wraps nor
+    // belongs to the left-edge app), or the retreat's bounce off the empty page past the last one. Each
+    // shows PageEndHint, but not during a drag nor just after one.
     var pageEndBounces by remember { mutableIntStateOf(0) }
+    fun sayNoMorePages() {
+        if (!dragInProgress() && !newPageLatched) pageEndBounces++
+    }
 
     LaunchedEffect(settledPage, pageCount, dragging, draggingLocal, crossSurfaceDrag, widgetDragController.active, tailCopy) {
         // With the copy of page 0 at the tail there is nothing to retreat from: PageZeroCopySwap
@@ -758,12 +762,8 @@ internal fun Workspace(
                     tailShowsPageZero = tailCopy,
                     leftEdgeAction = leftEdgeActionEnabled,
                     onWrap = { toTailCopy -> copyOnScreen = toTailCopy },
-                    // Not during a drag, nor just after one (newPageLatched), like the right end's hint.
-                    onStartOverscroll = {
-                        if (!dragInProgress() && !newPageLatched) {
-                            pageEndBounces++
-                        }
-                    },
+                    onStartOverscroll = ::sayNoMorePages,
+                    onEndOverscroll = ::sayNoMorePages,
                 ),
                 modifier = Modifier
                     .weight(1f)

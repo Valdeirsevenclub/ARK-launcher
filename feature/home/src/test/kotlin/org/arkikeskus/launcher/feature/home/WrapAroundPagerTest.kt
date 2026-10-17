@@ -7,17 +7,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.down
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.moveBy
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.up
 import androidx.compose.ui.unit.dp
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +40,8 @@ class WrapAroundPagerTest {
     @get:Rule val compose = createComposeRule()
 
     private lateinit var pager: PagerState
+    private lateinit var scope: CoroutineScope
+    private var endPulls = 0
     private val wrapsOntoCopy = mutableListOf<Int>()
     private val swapsFromCopy = mutableListOf<PagerMoment>()
 
@@ -42,6 +50,7 @@ class WrapAroundPagerTest {
 
     private fun setPager(startPage: Int, copy: Boolean = true, leftEdgeAction: Boolean = false) {
         compose.setContent {
+            scope = rememberCoroutineScope()
             pager = rememberPagerState(initialPage = startPage) { PAGES + 1 }
             HorizontalPager(
                 pager,
@@ -52,6 +61,7 @@ class WrapAroundPagerTest {
                     tailShowsPageZero = copy,
                     leftEdgeAction = leftEdgeAction,
                     onWrap = { toCopy -> if (toCopy) wrapsOntoCopy += pager.currentPage },
+                    onEndOverscroll = { endPulls++ },
                 ),
             ) { Box(Modifier.fillMaxSize()) }
             PageZeroCopySwap(pager, PAGES, copy, onBeforeSwap = {
@@ -110,12 +120,37 @@ class WrapAroundPagerTest {
     }
 
     @Test
-    fun withoutTheCopySwipingOnStillReachesTheEmptyTail() {
+    fun withoutTheCopyAFlickOnStopsAtTheLastPage() {
+        // The empty drop page past the last one is for dragging icons only.
         setPager(startPage = PAGES - 1, copy = false)
         swipeOn()
         compose.waitForIdle()
-        assertThat(pager.currentPage).isEqualTo(PAGES)
+        assertThat(pager.currentPage).isEqualTo(PAGES - 1)
         assertThat(swapsFromCopy).isEmpty()
+        assertThat(endPulls).isGreaterThan(0)
+    }
+
+    @Test
+    fun withoutTheCopyAHeldPullPastTheLastPageNeverShowsTheDropPage() {
+        setPager(startPage = PAGES - 1, copy = false)
+        compose.onNodeWithTag("pager").performTouchInput {
+            down(center)
+            repeat(16) { moveBy(Offset(-width * 0.05f, 0f)) } // 0.8 of a page past the end
+        }
+        compose.mainClock.advanceTimeBy(100)
+        assertThat(pager.currentPage).isEqualTo(PAGES - 1)
+        assertThat(pager.currentPageOffsetFraction).isWithin(0.001f).of(0f)
+        compose.onNodeWithTag("pager").performTouchInput { up() }
+    }
+
+    @Test
+    fun aDragsEdgeFlipStillReachesTheDropPage() {
+        // The workspace flips pages during a drag with animateScrollToPage, which never passes
+        // through the overscroll: the drop page must stay reachable that way.
+        setPager(startPage = PAGES - 1, copy = false)
+        compose.runOnIdle { scope.launch { pager.animateScrollToPage(PAGES) } }
+        compose.waitForIdle()
+        assertThat(pager.currentPage).isEqualTo(PAGES)
     }
 
     @Test

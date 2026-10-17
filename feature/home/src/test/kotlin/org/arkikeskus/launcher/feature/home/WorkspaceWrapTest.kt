@@ -82,6 +82,25 @@ class WorkspaceWrapTest {
     }
 
     @Test
+    fun aScrollThatRunsPastTheLastPageIsCutBackToIt() {
+        // From inside the pages: everything past the last page (2) is the overrun.
+        assertThat(dropPageOverrun(before = 1.5f, after = 2.4f, lastPage = 2)).isWithin(1e-4f).of(0.4f)
+        assertThat(dropPageOverrun(before = 2f, after = 2.3f, lastPage = 2)).isWithin(1e-4f).of(0.3f)
+    }
+
+    @Test
+    fun aScrollThatStaysInsideThePagesIsLeftAlone() {
+        assertThat(dropPageOverrun(before = 1f, after = 1.8f, lastPage = 2)).isEqualTo(0f)
+        assertThat(dropPageOverrun(before = 2f, after = 1.6f, lastPage = 2)).isEqualTo(0f)
+    }
+
+    @Test
+    fun aPagerAlreadyOnTheDropPageIsNotPulledBackByTheCut() {
+        // After a drag ended there; the workspace's own retreat brings it back.
+        assertThat(dropPageOverrun(before = 2.6f, after = 2.8f, lastPage = 2)).isEqualTo(0f)
+    }
+
+    @Test
     fun otherPagesAlwaysHostTheirOwnWidgets() {
         assertThat(ownsWidgetViews(page = 2, isTailCopy = false, copyOnScreen = true)).isTrue()
     }
