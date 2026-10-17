@@ -635,17 +635,17 @@ internal fun Workspace(
     // retreat must yield to it (otherwise the page snaps back to the front under the finger — the
     // "it won't stay on the other page" bug). The in-home icon/local drags are already covered by
     // dragging/draggingLocal.
-    fun crossSurfaceDragNow(): Boolean = dragController.moving &&
+    val crossSurfaceDrag = dragController.moving &&
         (dragController.source == DragSource.Drawer || dragController.source == DragSource.Dock)
-    val crossSurfaceDrag = crossSurfaceDragNow()
 
     // Infinite scrolling (WorkspaceWrap.kt): outside a drag the trailing page shows a copy of page 0.
     // Any drag (or the widget edit frame) turns it back into the empty new page, and it stays that
     // until the pager rests on a real page — so a drop onto the new page, or the retreat after one,
     // never shows page 0 there. The drag code itself never sees the copy.
-    // A function, so callbacks can ask at call time (a dock drag leaves the pager scrollable, so a
-    // second finger can still pull it while one is in progress).
-    fun dragInProgress(): Boolean = dragging != null || draggingLocal != null || crossSurfaceDragNow() ||
+    // A drag counts from its lift, still or moving, on every surface (isDragging), as a home icon's
+    // does (dragging). A function, so callbacks can ask at call time: a dock lift leaves the pager
+    // scrollable, so a second finger can still pull it while one is held.
+    fun dragInProgress(): Boolean = dragging != null || draggingLocal != null || dragController.isDragging ||
         widgetDragController.active != null || editingWidget != null
     val anyDrag = dragInProgress()
     var newPageLatched by remember { mutableStateOf(false) }

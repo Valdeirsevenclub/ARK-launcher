@@ -202,6 +202,33 @@ class WorkspaceInfiniteScrollTest {
         compose.onNodeWithText(NO_MORE_PAGES).assertDoesNotExist()
     }
 
+    /** A dock icon lifted by a still long-press, not moving yet (its menu opens on release). The
+     *  pager stays scrollable for a dock lift, so a second finger can still pull it. */
+    private fun holdDockIconStill() {
+        compose.runOnUiThread {
+            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), DragSource.Dock, Offset.Zero, Any())
+            Snapshot.sendApplyNotifications()
+        }
+    }
+
+    @Test
+    fun aSecondFingerDoesNotWrapBackWhileADockIconIsHeldStill() {
+        setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
+        holdDockIconStill()
+        swipeBack()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(0)
+    }
+
+    @Test
+    fun aSecondFingerDoesNotWrapOnWhileADockIconIsHeldStill() {
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = true)
+        holdDockIconStill()
+        swipeOn()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertThat(drag.currentPage).isEqualTo(2)
+    }
+
     @Test
     fun wrappingBackSaysNothing() {
         setWorkspace(pageCount = 3, homePage = 0, infiniteScroll = true)
