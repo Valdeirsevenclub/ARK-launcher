@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,7 +94,8 @@ data class PlacedFolder(
     override val cellY: Int,
 ) : HomeEntry
 
-/** A pinned deep shortcut placed at a free cell ([rowId] is the home_items row, used to move/remove). */
+/** A pinned deep shortcut placed at a free cell ([rowId] is the home_items row, used to move/remove).
+ *  [enabled] is false while the app has it disabled ([disabledMessage] is the app's reason, if any). */
 data class PlacedShortcut(
     val rowId: Long,
     val packageName: String,
@@ -101,6 +103,8 @@ data class PlacedShortcut(
     val userSerial: Long,
     val label: String,
     val icon: ImageBitmap?,
+    val enabled: Boolean,
+    val disabledMessage: String?,
     override val page: Int,
     override val cellX: Int,
     override val cellY: Int,
@@ -173,6 +177,21 @@ class HomeViewModel @Inject constructor(
     private val _showOnboarding = kotlinx.coroutines.flow.MutableStateFlow(false)
     val showOnboarding: StateFlow<Boolean> = _showOnboarding
 
+    // Declared BEFORE init on purpose: viewModelScope is Main.immediate and the ViewModel is built on
+    // the main thread, so the collectors in init run synchronously inside the constructor up to their
+    // first suspension. A shortcut batch that pooled in the repository while no ViewModel existed is
+    // handed over right there, and anything declared after init would still be null at that point.
+
+    /** Resolved pinned shortcuts: filled from the uiState combine, invalidated by the collectors in init. */
+    private val shortcutCache = PinnedShortcutCache()
+
+    /** (package, profile serial) of every shortcut pinned on home, for skipping irrelevant shortcut events. */
+    private val pinnedShortcutOwners: StateFlow<Set<Pair<String, Long>>> = homeLayoutRepository.homeItems
+        .map { items ->
+            items.filter { it.containerId == HomeItemEntity.HOME && it.isShortcut }.mapTo(HashSet()) { it.packageName to it.userSerial }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     init {
         // First-run experience, decided ONCE per install: on an empty home surface, seed the
         // smartspace widget + the default dock (phone/messages/Settings/browser/camera) and show
@@ -220,10 +239,22 @@ class HomeViewModel @Inject constructor(
             }
         }
         // A package update can change a pinned shortcut's label/icon; drop its cached resolutions
-        // so the uiState combine re-resolves them (cache keys are "package/id/serial").
+        // so the uiState combine re-resolves them.
         viewModelScope.launch {
-            appRepository.packageEvents.collect { pkg ->
-                shortcutCache.keys.removeIf { it.startsWith("$pkg/") }
+            appRepository.packageEvents.collect { pkg -> shortcutCache.invalidate(pkg) }
+        }
+        // So can the app itself at any time (a new name or photo, disabling or removing one), as
+        // Launcher3's ShortcutsChangedTask handles. Most of these events come from apps with nothing
+        // pinned on home (chat apps re-publish on every message) and are skipped. The rest arrive in
+        // batches: the lock below is held through a whole restore, and the changes of that time
+        // pool up in the repository instead of overflowing a buffer.
+        viewModelScope.launch {
+            appRepository.shortcutChanges.collect { owners ->
+                val onHome = shortcutCache.shortcutsChanged(owners, pinnedShortcutOwners.value)
+                if (onHome.isEmpty()) return@collect
+                ShortcutPinLock.withLock {
+                    onHome.forEach { homeLayoutRepository.removeMissingShortcuts(it.first, it.second) }
+                }
             }
         }
         // Ghost-row hygiene: an uninstalled app's home rows never render but still occupy their
@@ -260,10 +291,6 @@ class HomeViewModel @Inject constructor(
      *  when the grant state hasn't changed. */
     fun refreshPhonePermission() = signalMonitor.refreshPermission()
 
-    /** Resolved (label + icon) cache for pinned shortcuts, keyed by package/id/userSerial.
-     *  Concurrent: filled from the uiState combine, invalidated from the package-event collector. */
-    private val shortcutCache = java.util.concurrent.ConcurrentHashMap<String, AppShortcuts.Resolved>()
-
     /**
      * True for a short window after a heads-up-worthy notification is posted, while the system
      * transiently reveals its own status bar over the launcher. HomeScreen blanks the themed status bar
@@ -285,7 +312,8 @@ class HomeViewModel @Inject constructor(
         settingsRepository.settings,
         settingsRepository.dockFavorites,
         appRepository.apps,
-        homeLayoutRepository.homeItems,
+        // A new cache generation re-runs this with the same rows, re-resolving what was invalidated.
+        homeLayoutRepository.homeItems.combine(shortcutCache.generation) { items, _ -> items },
         notificationBadgeRepository.badges,
     ) { settings, favoriteKeys, apps, homeItems, badges ->
         val byKey = apps.associateBy { it.key }
@@ -294,15 +322,20 @@ class HomeViewModel @Inject constructor(
         val childrenByFolder = homeItems
             .filter { it.containerId != HomeItemEntity.HOME }
             .groupBy { it.containerId }
-        // Resolve any not-yet-cached pinned shortcuts (label + icon) off the main thread.
+        // Resolve any not-yet-cached pinned shortcuts (label, icon, state) off the main thread. This
+        // pass shows what it resolved even when a racing change kept it out of the cache — the retry
+        // pass that the cache requested then replaces it.
+        val resolvedShortcuts = HashMap<PinnedShortcutCache.Key, AppShortcuts.Resolved>()
         for (row in homeItems) {
             if (row.containerId == HomeItemEntity.HOME && row.isShortcut) {
-                val k = "${row.packageName}/${row.shortcutId}/${row.userSerial}"
-                if (!shortcutCache.containsKey(k)) {
+                val key = PinnedShortcutCache.Key(row.packageName, row.shortcutId!!, row.userSerial)
+                val resolved = shortcutCache[key] ?: run {
+                    val epoch = shortcutCache.epoch(row.packageName)
                     withContext(Dispatchers.IO) {
-                        AppShortcuts.resolve(context, row.packageName, row.shortcutId!!, row.userSerial)
-                    }?.let { shortcutCache[k] = it }
+                        AppShortcuts.resolve(context, row.packageName, key.shortcutId, row.userSerial)
+                    }?.also { shortcutCache.put(key, it, epoch) }
                 }
+                if (resolved != null) resolvedShortcuts[key] = resolved
             }
         }
         val entries = homeItems
@@ -324,8 +357,7 @@ class HomeViewModel @Inject constructor(
                         PlacedFolder(row.id, row.folderName.orEmpty(), folderApps, row.page, row.cellX, row.cellY)
                     }
                     row.isShortcut -> {
-                        val k = "${row.packageName}/${row.shortcutId}/${row.userSerial}"
-                        shortcutCache[k]?.let { r ->
+                        resolvedShortcuts[PinnedShortcutCache.Key(row.packageName, row.shortcutId!!, row.userSerial)]?.let { r ->
                             PlacedShortcut(
                                 rowId = row.id,
                                 packageName = row.packageName,
@@ -333,6 +365,8 @@ class HomeViewModel @Inject constructor(
                                 userSerial = row.userSerial,
                                 label = r.label,
                                 icon = r.icon,
+                                enabled = r.enabled,
+                                disabledMessage = r.disabledMessage,
                                 page = row.page,
                                 cellX = row.cellX,
                                 cellY = row.cellY,
@@ -418,9 +452,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.dismissDefaultReminder() }
     }
 
-    /** Launches a pinned deep shortcut placed on the home screen. */
-    fun launchShortcut(shortcut: PlacedShortcut) =
-        AppShortcuts.startById(context, shortcut.packageName, shortcut.shortcutId, shortcut.userSerial)
+    /** Launches a pinned deep shortcut placed on the home screen (a disabled one explains itself). */
+    fun launchShortcut(shortcut: PlacedShortcut) = AppShortcuts.startById(
+        context, shortcut.packageName, shortcut.shortcutId, shortcut.userSerial, shortcut.enabled, shortcut.disabledMessage,
+    )
 
     /** Stores a pinned shortcut on home (the system-level pin is done by the caller, which has a
      *  Context). Idempotent — the repository skips one already present. */

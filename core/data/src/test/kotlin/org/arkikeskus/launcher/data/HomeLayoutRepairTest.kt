@@ -328,4 +328,29 @@ class HomeLayoutRepairTest {
 
         assertThat(dao.getContainer(HOME).map { it.packageName to it.page }).containsExactly("b" to 1)
     }
+
+    @Test
+    fun shortcutChange_dropsOnlyThatPackagesShortcutsTheSystemNoLongerHas() = runTest {
+        shortcut("com.chat", "mia", x = 0)
+        shortcut("com.chat", "gone", x = 1)
+        shortcut("com.other", "gone", x = 2)
+        resolver.missing["com.chat"] = setOf("gone")
+        resolver.missing["com.other"] = setOf("gone")
+
+        assertThat(repo.removeMissingShortcuts("com.chat", userSerial = 0L)).isEqualTo(1)
+
+        assertThat(dao.getContainer(HOME).map { it.packageName to it.shortcutId })
+            .containsExactly("com.chat" to "mia", "com.other" to "gone")
+    }
+
+    @Test
+    fun shortcutChange_inAnotherProfile_keepsThisProfilesShortcut() = runTest {
+        shortcut("com.chat", "gone", x = 0)
+        dao.insert(HomeItemEntity(packageName = "com.chat", shortcutId = "gone", userSerial = 10L, page = 0, cellX = 1, cellY = 0))
+        resolver.missing["com.chat"] = setOf("gone")
+
+        repo.removeMissingShortcuts("com.chat", userSerial = 10L)
+
+        assertThat(dao.getContainer(HOME).map { it.userSerial }).containsExactly(0L)
+    }
 }

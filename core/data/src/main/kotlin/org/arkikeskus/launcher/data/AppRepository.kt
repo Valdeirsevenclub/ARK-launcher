@@ -51,6 +51,9 @@ class AppRepository @Inject constructor(
     /** See [LauncherAppsSource.packageRemovals]. */
     val packageRemovals: Flow<Pair<String, Long>> get() = source.packageRemovals
 
+    /** See [LauncherAppsSource.shortcutChanges] (batches, for one collector). */
+    val shortcutChanges: Flow<Set<Pair<String, Long>>> get() = source.shortcutChanges
+
     /** See [LauncherAppsSource.isAppInstalled] (fail-safe: unknown → true). */
     fun isAppInstalled(packageName: String, userSerial: Long): Boolean =
         source.isAppInstalled(packageName, userSerial)

@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.content.pm.ShortcutInfo
 import android.content.res.Configuration
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.ColorDrawable
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.model.AppItem
@@ -69,6 +71,30 @@ class LauncherAppsSource @Inject constructor(
      *  reach this flow and trigger a wrongful home-row cleanup. */
     private val _packageRemovals = MutableSharedFlow<Pair<String, Long>>(extraBufferCapacity = 16)
     val packageRemovals: SharedFlow<Pair<String, Long>> = _packageRemovals
+
+    /**
+     * (package, profile serial) whose app shortcuts were added, updated, disabled or removed, in
+     * batches for ONE collector. The owners pool in a set while the collector is busy (the home
+     * collector waits for [ShortcutPinLock] through a whole restore) and reach it together once it
+     * is free: nothing is dropped, however long the wait, and the backlog can't outgrow the number
+     * of distinct owners however often a chat app re-publishes. A shared flow with a fixed buffer
+     * dropped the 17th notice of such a wait, and that app's home shortcuts then stayed stale.
+     */
+    private val pendingShortcutOwners = HashSet<Pair<String, Long>>()
+    private val shortcutWakeups = Channel<Unit>(Channel.CONFLATED)
+    val shortcutChanges: Flow<Set<Pair<String, Long>>> = flow {
+        for (unused in shortcutWakeups) {
+            val owners = synchronized(pendingShortcutOwners) {
+                pendingShortcutOwners.toSet().also { pendingShortcutOwners.clear() }
+            }
+            if (owners.isNotEmpty()) emit(owners)
+        }
+    }
+
+    private fun shortcutsChanged(packageName: String, userSerial: Long) {
+        synchronized(pendingShortcutOwners) { pendingShortcutOwners += packageName to userSerial }
+        shortcutWakeups.trySend(Unit)
+    }
 
     /** Re-fetch tokens for app icons (see [IconEpochs]): a package update bumps that package, an
      *  icon-pack content change bumps the global generation. AppIcon feeds these into the Coil
@@ -204,6 +230,13 @@ class LauncherAppsSource @Inject constructor(
                 packageEvent(*names, iconsMayHaveChanged = replacing)
             override fun onPackagesUnavailable(names: Array<out String>, user: UserHandle, replacing: Boolean) =
                 packageEvent(*names)
+
+            // Only the default home app receives it. Not a package event: chat apps re-publish their
+            // shortcuts on every message, and those must not rescan the app list.
+            override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) {
+                val serial = runCatching { userManager?.getSerialNumberForUser(user) }.getOrNull() ?: 0L
+                shortcutsChanged(packageName, serial)
+            }
         }
 
         // Labels are resolved in the process locale at query time. A system-language change — or

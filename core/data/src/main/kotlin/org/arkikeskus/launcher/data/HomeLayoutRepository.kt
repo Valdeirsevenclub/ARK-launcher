@@ -526,6 +526,23 @@ class HomeLayoutRepository @Inject constructor(
             deleteAndRepairFolders(all, doomed)
         }
 
+    /**
+     * Shortcut-change cleanup for one app in one profile: deletes its home shortcut rows whose shortcut
+     * the system definitively no longer has (data cleared, app archived), as Launcher3's
+     * `ShortcutsChangedTask` does — the per-package slice of [planSweep], so a shortcut that vanishes
+     * while the launcher runs leaves no invisible but occupied cell until the next launch's sweep.
+     */
+    suspend fun removeMissingShortcuts(packageName: String, userSerial: Long): Int =
+        db.withTransaction {
+            val rows = dao.getContainer(HOME)
+                .filter { it.isShortcut && it.packageName == packageName && it.userSerial == userSerial }
+            if (rows.isEmpty()) return@withTransaction 0
+            val missing = resolver.missingShortcuts(packageName, userSerial, rows.mapNotNull { it.shortcutId }.distinct())
+            val doomed = rows.filter { it.shortcutId in missing }
+            doomed.forEach { dao.deleteById(it.id) }
+            doomed.size
+        }
+
     /** Deletes [ids] (rows of [all]) and repairs the folders they left. */
     private suspend fun deleteAndRepairFolders(all: List<HomeItemEntity>, ids: Set<Long>): Int {
         if (ids.isEmpty()) return 0

@@ -49,6 +49,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -499,6 +501,7 @@ internal fun Workspace(
     // Shared drag for a local home entry (folder or pinned shortcut): long-press lifts; drag moves it
     // by [rowId] to a cell (swapping any occupant); a tap is [onTap]; a still long-press is
     // [onStillPress] (open folder / show shortcut menu). Mirrors the app drag but stays on the grid.
+    @Composable
     fun Modifier.localEntryDrag(
         entry: HomeEntry,
         rowId: Long,
@@ -508,83 +511,94 @@ internal fun Workspace(
         onRemove: () -> Unit,
         // The desktop lock, or the copy of page 0 at the tail (taps only).
         pageLocked: Boolean = locked,
-    // [removable] is a key: a folder's removability changes with its visible apps, and a detector
-    // holding the old value could remove a folder that shows apps again.
-    ): Modifier = this.pointerInput(rowId, entry.page, entry.cellX, entry.cellY, cellW, cellH, columns, rows, pageLocked, removable) {
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            down.consume()
-            // Shared press phase (tap / yield to a claimed swipe / hold). The lift starts where the
-            // finger is when the hold completes — the hold tolerates a roll across the icon.
-            val press = awaitIconPress(down)
-            if (press is IconPressOutcome.Tap) { onTap(); return@awaitEachGesture }
-            if (press !is IconPressOutcome.Held) return@awaitEachGesture
-            val holdPos = press.position
-            // Desktop locked: long-press does nothing (no move/remove); tap (above) still opens.
-            if (pageLocked) return@awaitEachGesture
-            // PICK UP — refused while another finger holds a lift (see HomeDragController.claim).
-            val token = Any()
-            if (!dragController.claim(token)) return@awaitEachGesture
-            draggingLocal = entry
-            localMoving = false
-            // Claim the gesture for this local entry so the root swipe-up detector (which runs in the
-            // Initial pass, before us) won't steal the first movement after this long-press.
-            dragController.localGestureActive = true
-            localDragPos = Offset(entry.cellX * cellW + holdPos.x, entry.cellY * cellH + holdPos.y)
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            val dragStartPx = IconPress.DragStartThreshold.toPx()
-            try {
-                val completed = drag(down.id) { change ->
-                    val delta = change.positionChange()
-                    change.consume()
-                    if (!dragController.owns(token)) return@drag
-                    localDragPos += delta
-                    // Same drag-start threshold as an app icon: a wobbling hold opens the folder / menu.
-                    if (!localMoving && IconPress.startsDrag(change.position, holdPos, dragStartPx)) {
-                        localMoving = true
-                        if (removable) dragController.localDragging = true
-                    }
-                    if (!localMoving) return@drag
-                    // Publish root coords so the remove zone can highlight + hit-test this local drag.
-                    if (removable) dragController.update(dragController.gridBounds.topLeft + localDragPos)
-                    val cx = (localDragPos.x / cellW).toInt().coerceIn(0, columns - 1)
-                    val cy = (localDragPos.y / cellH).toInt().coerceIn(0, rows - 1)
-                    val nc = IntOffset(cx, cy)
-                    if (nc != targetCell) targetCell = nc
-                }
-                targetCell = null
-                val rootPos = dragController.gridBounds.topLeft + localDragPos
-                // Nothing on release once HOME cancelled the lift.
-                val live = completed && dragController.owns(token)
-                if (live && localMoving && removable && dragController.isOverRemove(rootPos)) {
-                    onRemove()
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                } else if (live && localMoving) {
-                    val tx = (localDragPos.x / cellW).toInt().coerceIn(0, columns - 1)
-                    val ty = (localDragPos.y / cellH).toInt().coerceIn(0, rows - 1)
-                    // targetPage, not currentPage: a release while an edge flip is still animating
-                    // lands on the page arriving under the finger, not the one leaving.
-                    val targetPage = pagerState.targetPage
-                    if (targetPage != entry.page || tx != entry.cellX || ty != entry.cellY) {
-                        localOptimistic = rowId to Triple(targetPage, tx, ty)
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        scope.launch {
-                            if (!onMoveFolder(rowId, targetPage, tx, ty)) localOptimistic = null
+    ): Modifier {
+        // The detector outlives the composition that made it: the entry is left out of its keys so
+        // a change to it (a shortcut the app disables or enables again, a folder's visible apps)
+        // can't restart the detector mid-hold. So what a gesture hands on is read when it fires —
+        // through these — not from the closure the detector was created with: a tap on a shortcut
+        // the app had enabled again used to launch it as still disabled.
+        val currentEntry by rememberUpdatedState(entry)
+        val currentOnTap by rememberUpdatedState(onTap)
+        val currentOnStillPress by rememberUpdatedState(onStillPress)
+        val currentOnRemove by rememberUpdatedState(onRemove)
+        // [removable] is a key: a folder's removability changes with its visible apps, and a detector
+        // holding the old value could remove a folder that shows apps again.
+        return this.pointerInput(rowId, entry.page, entry.cellX, entry.cellY, cellW, cellH, columns, rows, pageLocked, removable) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                down.consume()
+                // Shared press phase (tap / yield to a claimed swipe / hold). The lift starts where the
+                // finger is when the hold completes — the hold tolerates a roll across the icon.
+                val press = awaitIconPress(down)
+                if (press is IconPressOutcome.Tap) { currentOnTap(); return@awaitEachGesture }
+                if (press !is IconPressOutcome.Held) return@awaitEachGesture
+                val holdPos = press.position
+                // Desktop locked: long-press does nothing (no move/remove); tap (above) still opens.
+                if (pageLocked) return@awaitEachGesture
+                // PICK UP — refused while another finger holds a lift (see HomeDragController.claim).
+                val token = Any()
+                if (!dragController.claim(token)) return@awaitEachGesture
+                draggingLocal = currentEntry
+                localMoving = false
+                // Claim the gesture for this local entry so the root swipe-up detector (which runs in the
+                // Initial pass, before us) won't steal the first movement after this long-press.
+                dragController.localGestureActive = true
+                localDragPos = Offset(entry.cellX * cellW + holdPos.x, entry.cellY * cellH + holdPos.y)
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                val dragStartPx = IconPress.DragStartThreshold.toPx()
+                try {
+                    val completed = drag(down.id) { change ->
+                        val delta = change.positionChange()
+                        change.consume()
+                        if (!dragController.owns(token)) return@drag
+                        localDragPos += delta
+                        // Same drag-start threshold as an app icon: a wobbling hold opens the folder / menu.
+                        if (!localMoving && IconPress.startsDrag(change.position, holdPos, dragStartPx)) {
+                            localMoving = true
+                            if (removable) dragController.localDragging = true
                         }
+                        if (!localMoving) return@drag
+                        // Publish root coords so the remove zone can highlight + hit-test this local drag.
+                        if (removable) dragController.update(dragController.gridBounds.topLeft + localDragPos)
+                        val cx = (localDragPos.x / cellW).toInt().coerceIn(0, columns - 1)
+                        val cy = (localDragPos.y / cellH).toInt().coerceIn(0, rows - 1)
+                        val nc = IntOffset(cx, cy)
+                        if (nc != targetCell) targetCell = nc
                     }
-                } else if (live) {
-                    onStillPress()
-                }
-            } finally {
-                // Reset even on cancellation (node disposed / pointerInput restarted), so a stuck flag
-                // can never leave the root swipe detector permanently disabled. A lift HOME already
-                // cancelled was reset there, and the state may belong to a newer gesture by now.
-                if (dragController.owns(token)) {
-                    dragController.localDragging = false
-                    dragController.localGestureActive = false
-                    draggingLocal = null
-                    localMoving = false
-                    dragController.release(token)
+                    targetCell = null
+                    val rootPos = dragController.gridBounds.topLeft + localDragPos
+                    // Nothing on release once HOME cancelled the lift.
+                    val live = completed && dragController.owns(token)
+                    if (live && localMoving && removable && dragController.isOverRemove(rootPos)) {
+                        currentOnRemove()
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    } else if (live && localMoving) {
+                        val tx = (localDragPos.x / cellW).toInt().coerceIn(0, columns - 1)
+                        val ty = (localDragPos.y / cellH).toInt().coerceIn(0, rows - 1)
+                        // targetPage, not currentPage: a release while an edge flip is still animating
+                        // lands on the page arriving under the finger, not the one leaving.
+                        val targetPage = pagerState.targetPage
+                        if (targetPage != entry.page || tx != entry.cellX || ty != entry.cellY) {
+                            localOptimistic = rowId to Triple(targetPage, tx, ty)
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            scope.launch {
+                                if (!onMoveFolder(rowId, targetPage, tx, ty)) localOptimistic = null
+                            }
+                        }
+                    } else if (live) {
+                        currentOnStillPress()
+                    }
+                } finally {
+                    // Reset even on cancellation (node disposed / pointerInput restarted), so a stuck flag
+                    // can never leave the root swipe detector permanently disabled. A lift HOME already
+                    // cancelled was reset there, and the state may belong to a newer gesture by now.
+                    if (dragController.owns(token)) {
+                        dragController.localDragging = false
+                        dragController.localGestureActive = false
+                        draggingLocal = null
+                        localMoving = false
+                        dragController.release(token)
+                    }
                 }
             }
         }
@@ -1769,9 +1783,27 @@ private fun WidgetEditOverlay(
     }
 }
 
-/** The icon + label of a pinned deep shortcut (the gesture, menu and offset live at the call site). */
+/**
+ * Launcher3's disabled-icon look (iconloaderlib `FastBitmapDrawable.getDisabledColorFilter`, Apache-2.0):
+ * brightened halfway to white, then fully desaturated.
+ */
+private val DisabledShortcutFilter: ColorFilter = run {
+    val brightness = android.graphics.ColorMatrix().apply {
+        val m = array
+        m[0] = 0.5f; m[6] = 0.5f; m[12] = 0.5f
+        m[4] = 127f; m[9] = 127f; m[14] = 127f
+    }
+    val filter = android.graphics.ColorMatrix().apply {
+        setSaturation(0f)
+        preConcat(brightness)
+    }
+    ColorFilter.colorMatrix(ColorMatrix(filter.array))
+}
+
+/** The icon + label of a pinned deep shortcut (the gesture, menu and offset live at the call site);
+ *  greyed out while the app has it disabled — a tap then shows why. */
 @Composable
-private fun ShortcutIconContent(
+internal fun ShortcutIconContent(
     shortcut: PlacedShortcut,
     showLabel: Boolean,
     labelColor: Color = Color.White,
@@ -1780,7 +1812,12 @@ private fun ShortcutIconContent(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         val icon = shortcut.icon
         if (icon != null) {
-            Image(bitmap = icon, contentDescription = shortcut.label, modifier = Modifier.size(iconSize))
+            Image(
+                bitmap = icon,
+                contentDescription = shortcut.label,
+                modifier = Modifier.size(iconSize),
+                colorFilter = if (shortcut.enabled) null else DisabledShortcutFilter,
+            )
         } else {
             Box(Modifier.size(iconSize))
         }

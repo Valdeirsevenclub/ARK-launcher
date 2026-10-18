@@ -45,7 +45,13 @@ object AppShortcuts {
     )
 
     /** A resolved pinned shortcut: its current label + rasterized icon, for rendering on home. */
-    data class Resolved(val label: String, val icon: ImageBitmap?)
+    data class Resolved(
+        val label: String,
+        val icon: ImageBitmap?,
+        val enabled: Boolean,
+        /** The app's own reason for disabling it, if it gave one. */
+        val disabledMessage: String?,
+    )
 
     fun query(context: Context, appItem: AppItem): List<Item> {
         val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return emptyList()
@@ -90,12 +96,23 @@ object AppShortcuts {
         if (!tryStart(context, item.packageName, item.id) { item.user }) sayUnavailable(context, reason = null)
     }
 
-    /** Launches a pinned shortcut identified by its stored (package, id, userSerial). */
-    fun startById(context: Context, packageName: String, shortcutId: String, userSerial: Long) {
-        val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return
-        val user = userForSerial(context, userSerial) ?: return
-        runCatching {
-            launcherApps.startShortcut(packageName, shortcutId, null, null, user)
+    /**
+     * Launches a pinned shortcut identified by its stored (package, id, userSerial). One the app
+     * disabled shows the app's reason (or the generic message), and one that fails to start (gone,
+     * its profile paused) the generic message — as Launcher3 does — instead of a tap doing nothing.
+     */
+    fun startById(
+        context: Context,
+        packageName: String,
+        shortcutId: String,
+        userSerial: Long,
+        enabled: Boolean,
+        disabledMessage: String?,
+    ) {
+        if (!enabled) {
+            sayUnavailable(context, disabledMessage)
+        } else if (!tryStart(context, packageName, shortcutId) { userForSerial(context, userSerial) }) {
+            sayUnavailable(context, reason = null)
         }
     }
 
@@ -147,7 +164,8 @@ object AppShortcuts {
         Unit
     }
 
-    /** Resolves a pinned shortcut's current label + icon (rasterized). Null if it no longer exists. */
+    /** Resolves a pinned shortcut's current label, icon (rasterized) and state — the app can disable a
+     *  pinned shortcut, which then stays pinned with its reason. Null if it no longer exists. */
     fun resolve(context: Context, packageName: String, shortcutId: String, userSerial: Long): Resolved? {
         val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return null
         val user = userForSerial(context, userSerial) ?: return null
@@ -160,15 +178,14 @@ object AppShortcuts {
                 ?: return@runCatching null
             val label = (info.longLabel ?: info.shortLabel)?.toString() ?: shortcutId
             val density = context.resources.displayMetrics.densityDpi
-            val drawable = launcherApps.getShortcutIconDrawable(info, density)
-            val icon = drawable?.let {
-                val size = 168
-                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-                it.setBounds(0, 0, size, size)
-                it.draw(Canvas(bitmap))
-                bitmap.asImageBitmap()
-            }
-            Resolved(label, icon)
+            // A failed icon load must not hide the shortcut: it would leave an empty but occupied cell.
+            val icon = runCatching { launcherApps.getShortcutIconDrawable(info, density)?.toImageBitmap(168) }.getOrNull()
+            Resolved(
+                label = label,
+                icon = icon,
+                enabled = info.isEnabled,
+                disabledMessage = info.disabledMessage?.toString()?.takeIf { it.isNotBlank() },
+            )
         }.getOrNull()
     }
 
