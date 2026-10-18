@@ -295,7 +295,7 @@ class HomeViewModel @Inject constructor(
      * True for a short window after a heads-up-worthy notification is posted, while the system
      * transiently reveals its own status bar over the launcher. HomeScreen blanks the themed status bar
      * during it so the two don't overlap (the reveal is not dispatched as a WindowInsets change, so this
-     * NotificationListener-fed signal is the only way to detect it — see the Fable-5 audit note).
+     * NotificationListener-fed signal is the only way to detect it).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val headsUpActive: StateFlow<Boolean> = notificationBadgeRepository.headsUp
