@@ -6,5 +6,6 @@
     <string name="rename_cancel">Annuler</string>
     <string name="rename_reset">Réinitialiser</string>
     <string name="shortcut_pin">Épingler sur l\'écran d\'accueil</string>
+    <string name="shortcut_unavailable">Raccourci non disponible</string>
     <string name="app_info_unavailable">Impossible d\'ouvrir les infos sur l\'application</string>
 </resources>

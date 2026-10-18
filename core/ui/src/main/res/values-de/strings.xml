@@ -6,5 +6,6 @@
     <string name="rename_cancel">Abbrechen</string>
     <string name="rename_reset">Auf Standard zurücksetzen</string>
     <string name="shortcut_pin">Zum Startbildschirm hinzufügen</string>
+    <string name="shortcut_unavailable">Verknüpfung nicht verfügbar</string>
     <string name="app_info_unavailable">App-Info konnte nicht geöffnet werden</string>
 </resources>

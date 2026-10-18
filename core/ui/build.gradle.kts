@@ -5,6 +5,7 @@ plugins {
 
 android {
     namespace = "org.arkikeskus.launcher.ui"
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 
 dependencies {
@@ -14,7 +15,10 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.coil.compose)
 
-    // JVM unit tests (pure icon/label sizing).
+    // JVM unit tests (pure icon/label sizing); Robolectric for the shortcut popup and LauncherApps calls.
     testImplementation(libs.junit)
     testImplementation(libs.google.truth)
+    testImplementation(libs.robolectric)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -6,5 +6,6 @@
     <string name="rename_cancel">Avbryt</string>
     <string name="rename_reset">Återställ standardnamn</string>
     <string name="shortcut_pin">Fäst på startskärmen</string>
+    <string name="shortcut_unavailable">Genvägen är inte tillgänglig</string>
     <string name="app_info_unavailable">Det gick inte att öppna appinformationen</string>
 </resources>

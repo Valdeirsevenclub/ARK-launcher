@@ -6,5 +6,6 @@
     <string name="rename_cancel">Cancelar</string>
     <string name="rename_reset">Restaurar padrão</string>
     <string name="shortcut_pin">Fixar na tela inicial</string>
+    <string name="shortcut_unavailable">O atalho não está disponível</string>
     <string name="app_info_unavailable">Não foi possível abrir os detalhes do app</string>
 </resources>

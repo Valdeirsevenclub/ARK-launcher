@@ -2,11 +2,14 @@ package org.arkikeskus.launcher.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -31,12 +34,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -60,6 +66,7 @@ data class IconMenuItem(@DrawableRes val icon: Int, val label: String, val onCli
 
 private const val POPUP_MARGIN_PX = 24
 private val CARD_WIDTH = 232.dp
+internal val SHORTCUT_ICON_SIZE = 24.dp
 
 /**
  * The Pixel-style long-press popup, shared by the home screen and the app drawer. Shows the app's
@@ -85,7 +92,9 @@ fun AppActionPopup(
     ExpressivePopupCard(anchor = anchor, preferAbove = preferAbove, onDismiss = onDismiss) {
         shortcuts.forEach { shortcut ->
             ShortcutPopupRow(
-                text = shortcut.label,
+                label = shortcut.label,
+                shortLabel = shortcut.shortLabel,
+                icon = shortcut.icon,
                 onClick = {
                     AppShortcuts.start(context, shortcut)
                     onDismiss()
@@ -215,24 +224,51 @@ private fun ExpressivePopupCard(
 }
 
 /**
- * A shortcut row: tap the label launches it; tap the trailing **+** (shown when [onPin] != null) pins
- * it to the home screen — the + is the affordance that tells the user this shortcut can be pinned.
+ * A shortcut row: the shortcut's own icon, then [label] when it fits on one line, else [shortLabel]
+ * (Launcher3's `DeepShortcutView` rule); tapping either launches it. The trailing **+** (shown when
+ * [onPin] != null) pins it to the home screen — the affordance that tells the user it can be pinned.
  */
 @Composable
-private fun ShortcutPopupRow(text: String, onClick: () -> Unit, onPin: (() -> Unit)?) {
+internal fun ShortcutPopupRow(
+    label: String,
+    shortLabel: String,
+    icon: ImageBitmap?,
+    onClick: () -> Unit,
+    onPin: (() -> Unit)?,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = LocalExpressivePalette.current.text,
+        Row(
             modifier = Modifier
                 .weight(1f)
                 .clickable(onClick = onClick)
-                .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-        )
+                // Tighter than an action row: the long label should fit as often as on Pixel.
+                .padding(start = 16.dp, end = if (onPin == null) 16.dp else 0.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // The slot stays when an icon is missing, so the labels of one popup line up.
+            Box(Modifier.size(SHORTCUT_ICON_SIZE)) {
+                if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+            val style = MaterialTheme.typography.bodyLarge
+            BoxWithConstraints(Modifier.weight(1f).padding(start = 12.dp)) {
+                val measurer = rememberTextMeasurer()
+                val maxWidthPx = constraints.maxWidth
+                val shown = remember(measurer, label, shortLabel, style, maxWidthPx) {
+                    val fits = measurer.measure(label, style, softWrap = false, maxLines = 1).size.width <= maxWidthPx
+                    if (fits) label else shortLabel
+                }
+                Text(
+                    text = shown,
+                    style = style,
+                    color = LocalExpressivePalette.current.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         if (onPin != null) {
             Box(
                 modifier = Modifier

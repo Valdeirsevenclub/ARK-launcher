@@ -6,5 +6,6 @@
     <string name="rename_cancel">Отмена</string>
     <string name="rename_reset">Вернуть исходное</string>
     <string name="shortcut_pin">Закрепить на главном экране</string>
+    <string name="shortcut_unavailable">Ярлык недоступен</string>
     <string name="app_info_unavailable">Не удалось открыть сведения о приложении</string>
 </resources>

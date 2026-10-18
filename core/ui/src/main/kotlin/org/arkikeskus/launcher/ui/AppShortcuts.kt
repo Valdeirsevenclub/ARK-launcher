@@ -2,15 +2,19 @@ package org.arkikeskus.launcher.ui
 
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.content.pm.ShortcutInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.os.UserHandle
 import android.os.UserManager
+import android.widget.Toast
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.arkikeskus.launcher.model.AppItem
+import kotlin.math.roundToInt
 
 /**
  * App shortcuts (static + dynamic "deep shortcuts", e.g. a browser's "New tab") shown in the
@@ -33,7 +37,11 @@ object AppShortcuts {
         val id: String,
         val user: UserHandle,
         val userSerial: Long,
+        /** The long label, or the short one when the app gave none. */
         val label: String,
+        /** The short label, or the long one; the popup shows it when [label] doesn't fit. */
+        val shortLabel: String,
+        val icon: ImageBitmap?,
     )
 
     /** A resolved pinned shortcut: its current label + rasterized icon, for rendering on home. */
@@ -42,31 +50,44 @@ object AppShortcuts {
     fun query(context: Context, appItem: AppItem): List<Item> {
         val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return emptyList()
         val userManager = context.getSystemService(UserManager::class.java)
+        val metrics = context.resources.displayMetrics
+        val iconPx = (SHORTCUT_ICON_SIZE.value * metrics.density).roundToInt()
         return runCatching {
-            val query = LauncherApps.ShortcutQuery()
-                .setPackage(appItem.packageName)
-                .setQueryFlags(ALL_FLAGS)
-            launcherApps.getShortcuts(query, appItem.user)
+            val offered = launcherApps.getShortcuts(popupShortcutQuery(appItem), appItem.user)
                 .orEmpty()
                 .filter { it.isEnabled }
-                .sortedBy { it.rank }
-                .mapNotNull { info ->
-                    val label = (info.longLabel ?: info.shortLabel)?.toString()
-                    if (label.isNullOrBlank()) {
-                        null
-                    } else {
-                        val serial = userManager?.getSerialNumberForUser(info.userHandle) ?: 0L
-                        Item(info.`package`, info.id, info.userHandle, serial, label)
-                    }
-                }
+                .mapNotNull { info -> labelsOf(info)?.let { labels -> info to labels } }
+            sortAndFilterShortcuts(
+                offered,
+                isManifest = { it.first.isDeclaredInManifest },
+                isDynamic = { it.first.isDynamic },
+                rank = { it.first.rank },
+            ).map { (info, labels) ->
+                val (label, shortLabel) = labels
+                val serial = userManager?.getSerialNumberForUser(info.userHandle) ?: 0L
+                // A failed icon load (e.g. a file icon it may not read) must not drop the shortcut.
+                val icon = runCatching {
+                    launcherApps.getShortcutIconDrawable(info, metrics.densityDpi)?.toImageBitmap(iconPx)
+                }.getOrNull()
+                Item(info.`package`, info.id, info.userHandle, serial, label, shortLabel, icon)
+            }
         }.getOrDefault(emptyList())
     }
 
-    fun start(context: Context, item: Item) {
-        val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return
-        runCatching {
-            launcherApps.startShortcut(item.packageName, item.id, null, null, item.user)
+    /** (long-or-short, short-or-long) label, or null when the shortcut has neither. */
+    private fun labelsOf(info: ShortcutInfo): Pair<String, String>? {
+        val long = info.longLabel?.toString()?.takeIf { it.isNotBlank() }
+        val short = info.shortLabel?.toString()?.takeIf { it.isNotBlank() }
+        return when {
+            long != null -> long to (short ?: long)
+            short != null -> short to short
+            else -> null
         }
+    }
+
+    /** Launches a popup shortcut; one that fails to start says so instead of doing nothing. */
+    fun start(context: Context, item: Item) {
+        if (!tryStart(context, item.packageName, item.id) { item.user }) sayUnavailable(context, reason = null)
     }
 
     /** Launches a pinned shortcut identified by its stored (package, id, userSerial). */
@@ -75,6 +96,21 @@ object AppShortcuts {
         val user = userForSerial(context, userSerial) ?: return
         runCatching {
             launcherApps.startShortcut(packageName, shortcutId, null, null, user)
+        }
+    }
+
+    private fun tryStart(context: Context, packageName: String, shortcutId: String, user: () -> UserHandle?): Boolean =
+        runCatching {
+            val launcherApps = context.getSystemService(LauncherApps::class.java)
+            val profile = user()
+            if (launcherApps == null || profile == null) return@runCatching false
+            launcherApps.startShortcut(packageName, shortcutId, null, null, profile)
+            true
+        }.getOrDefault(false)
+
+    private fun sayUnavailable(context: Context, reason: String?) {
+        runCatching {
+            Toast.makeText(context, reason ?: context.getString(R.string.shortcut_unavailable), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -140,4 +176,56 @@ object AppShortcuts {
         val userManager = context.getSystemService(UserManager::class.java) ?: return null
         return runCatching { userManager.getUserForSerialNumber(serial) }.getOrNull()
     }
+
+    private fun Drawable.toImageBitmap(sizePx: Int): ImageBitmap {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        setBounds(0, 0, sizePx, sizePx)
+        draw(Canvas(bitmap))
+        return bitmap.asImageBitmap()
+    }
+}
+
+/**
+ * What the long-press popup asks for, as Launcher3's `ShortcutRequest.PUBLISHED` + `withContainer`: only
+ * the shortcuts the app offers now (a home-pinned one it has dropped stays on home only), and only for
+ * the pressed icon's own activity — a package can publish shortcuts for several, e.g. YouTube for each
+ * of its hidden alternative icons.
+ */
+internal fun popupShortcutQuery(appItem: AppItem): LauncherApps.ShortcutQuery =
+    LauncherApps.ShortcutQuery()
+        .setPackage(appItem.packageName)
+        .setActivity(appItem.componentName)
+        .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST)
+
+private const val MAX_POPUP_SHORTCUTS = 4
+private const val MIN_DYNAMIC_SHORTCUTS = 2
+
+/**
+ * The popup's pick from an icon's published shortcuts, as AOSP Launcher3's
+ * `PopupPopulator.sortAndFilterShortcuts` (Apache-2.0): the app's fixed (manifest) shortcuts first, each
+ * kind by rank — their ranks are separate sequences — and at most [MAX_POPUP_SHORTCUTS], of which up to
+ * [MIN_DYNAMIC_SHORTCUTS] dynamic ones (e.g. recent chats) displace the last fixed ones.
+ */
+internal fun <T> sortAndFilterShortcuts(
+    shortcuts: List<T>,
+    isManifest: (T) -> Boolean,
+    isDynamic: (T) -> Boolean,
+    rank: (T) -> Int,
+): List<T> {
+    val sorted = shortcuts.sortedWith(compareBy<T>({ !isManifest(it) }, { rank(it) }))
+    if (sorted.size <= MAX_POPUP_SHORTCUTS) return sorted
+    val picked = ArrayList<T>(MAX_POPUP_SHORTCUTS)
+    var dynamicCount = 0
+    for (shortcut in sorted) {
+        if (picked.size < MAX_POPUP_SHORTCUTS) {
+            picked += shortcut
+            if (isDynamic(shortcut)) dynamicCount++
+        } else if (isDynamic(shortcut) && dynamicCount < MIN_DYNAMIC_SHORTCUTS) {
+            dynamicCount++
+            // The picked list is fixed shortcuts followed by dynamic ones: drop the last fixed one.
+            picked.removeAt(picked.size - dynamicCount)
+            picked += shortcut
+        }
+    }
+    return picked
 }

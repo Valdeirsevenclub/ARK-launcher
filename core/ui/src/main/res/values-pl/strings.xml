@@ -6,5 +6,6 @@
     <string name="rename_cancel">Anuluj</string>
     <string name="rename_reset">Przywróć domyślną nazwę</string>
     <string name="shortcut_pin">Przypnij do ekranu głównego</string>
+    <string name="shortcut_unavailable">Skrót nie jest dostępny</string>
     <string name="app_info_unavailable">Nie udało się otworzyć informacji o aplikacji</string>
 </resources>

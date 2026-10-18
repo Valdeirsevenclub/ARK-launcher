@@ -6,5 +6,6 @@
     <string name="rename_cancel">İptal</string>
     <string name="rename_reset">Varsayılana sıfırla</string>
     <string name="shortcut_pin">Ana ekrana sabitle</string>
+    <string name="shortcut_unavailable">Kısayol kullanılamıyor</string>
     <string name="app_info_unavailable">Uygulama bilgileri açılamadı</string>
 </resources>
