@@ -30,4 +30,10 @@ class FakeAppRowResolver : AppRowResolver {
         pins[packageName to userSerial] = shortcutIds
         return true
     }
+
+    /** What the system says about a pin for this launcher; by default every shortcut asked about is pinned. */
+    var pinnedHere: (packageName: String, userSerial: Long, shortcutId: String) -> Boolean? = { _, _, _ -> true }
+
+    override fun isPinnedHere(packageName: String, userSerial: Long, shortcutId: String): Boolean? =
+        pinnedHere(packageName, userSerial, shortcutId)
 }

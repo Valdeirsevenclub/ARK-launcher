@@ -155,6 +155,22 @@ class LauncherAppsSource @Inject constructor(
         }
     }
 
+    override fun isPinnedHere(packageName: String, userSerial: Long, shortcutId: String): Boolean? = try {
+        val user = availableProfile(userSerial)
+        if (user == null || !launcherApps.hasShortcutHostPermission()) {
+            null
+        } else {
+            // FLAG_MATCH_PINNED alone: the shortcuts pinned by this launcher, not by any other.
+            val query = LauncherApps.ShortcutQuery()
+                .setPackage(packageName)
+                .setShortcutIds(listOf(shortcutId))
+                .setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED)
+            launcherApps.getShortcuts(query, user)?.any { it.id == shortcutId && it.isPinned }
+        }
+    } catch (e: Exception) {
+        null
+    }
+
     override fun isTemporarilyUnavailable(packageName: String, userSerial: Long): Boolean {
         val um = userManager ?: return true
         return try {

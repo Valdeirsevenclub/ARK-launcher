@@ -270,6 +270,31 @@ class PinRequestStoreTest {
         assertThat(resolver.pins).isEmpty()
     }
 
+    /** A request another app made up rather than the system: its accept() says yes, but the system
+     *  pinned nothing for this launcher. No row, and the app's pin set is put back to what home holds. */
+    @Test
+    fun aShortcutTheSystemDidNotPinIsNotStored() = runTest {
+        shortcutRow("old")
+        resolver.pinnedHere = { _, _, _ -> false }
+
+        val rowId = store.accept(FakeRequest(mia) { true }, PinDecision.Confirm(0, 1, 0), 4, 6)
+
+        assertThat(rowId).isNull()
+        assertThat(shortcutRows().map { it.shortcutId }).containsExactly("old")
+        assertThat(resolver.pins["com.chat" to 0L]).containsExactly("old")
+    }
+
+    /** Whether the system pinned it can't be told: the row waits for a pin it can see, as above. */
+    @Test
+    fun aShortcutWhosePinCannotBeConfirmedIsNotStored() = runTest {
+        resolver.pinnedHere = { _, _, _ -> null }
+
+        val rowId = store.accept(FakeRequest(mia) { true }, origin, 4, 6)
+
+        assertThat(rowId).isNull()
+        assertThat(shortcutRows()).isEmpty()
+    }
+
     @Test
     fun anAcceptedRequestStoresTheRowAtItsPlacement() = runTest {
         val rowId = store.accept(FakeRequest(mia) { true }, PinDecision.Confirm(0, 2, 1), 4, 6)

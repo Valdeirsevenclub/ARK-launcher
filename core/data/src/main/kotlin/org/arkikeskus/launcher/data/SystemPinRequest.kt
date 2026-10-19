@@ -43,8 +43,15 @@ private fun shortcutRequest(context: Context, request: LauncherApps.PinItemReque
 }
 
 private fun widgetRequest(context: Context, request: LauncherApps.PinItemRequest): PinRequest? {
-    val info = runCatching { request.getAppWidgetProviderInfo(context) }.getOrNull() ?: return null
-    val provider = info.provider ?: return null
+    val claimed = runCatching { request.getAppWidgetProviderInfo(context) }.getOrNull() ?: return null
+    val provider = claimed.provider ?: return null
+    // The confirmation is an exported activity, so the request may be one another app made up rather
+    // than the system's: the widget is the installed provider it names, as the system describes it
+    // (the widget picker's own description), or nothing.
+    val profile = runCatching { claimed.profile }.getOrNull() ?: Process.myUserHandle()
+    val info = runCatching {
+        AppWidgetManager.getInstance(context).getInstalledProvidersForPackage(provider.packageName, profile)
+    }.getOrNull()?.firstOrNull { it.provider == provider } ?: return null
     // The same name the widget picker shows for it.
     val label = runCatching { info.loadLabel(context.packageManager) }.getOrNull()
         ?.takeIf { it.isNotBlank() } ?: provider.packageName
@@ -104,10 +111,13 @@ private class SystemWidgetPinRequest(
     override fun accept(appWidgetId: Int): Boolean =
         request.accept(Bundle().apply { putInt(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
 
+    /** The requesting app's own preview. The system takes a widget's pin request only from the
+     *  provider's own package, so a preview made for another package is not shown (the provider's
+     *  own preview stands in). */
     override val remotePreview: RemoteViews? by lazy {
         runCatching {
             request.extras?.let { BundleCompat.getParcelable(it, AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, RemoteViews::class.java) }
-        }.getOrNull()
+        }.getOrNull()?.takeIf { it.`package` == info.provider.packageName }
     }
 
     /** The widget has its own preview (the picker's); only the requesting app's name is read here. */

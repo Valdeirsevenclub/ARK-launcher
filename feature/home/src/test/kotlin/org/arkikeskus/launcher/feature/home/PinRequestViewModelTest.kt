@@ -65,6 +65,7 @@ class PinRequestViewModelTest {
         override fun isTemporarilyUnavailable(packageName: String, userSerial: Long) = false
         override fun ownUserSerial(): Long = 0L
         override fun pinShortcuts(packageName: String, userSerial: Long, shortcutIds: List<String>) = true
+        override fun isPinnedHere(packageName: String, userSerial: Long, shortcutId: String) = true
     }
 
     @Before

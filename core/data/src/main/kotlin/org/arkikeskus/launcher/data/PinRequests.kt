@@ -301,8 +301,9 @@ class PinRequestStore @Inject constructor(
      * Accepts a shortcut [request] and stores its home row at [placement] — or at the first free
      * cell when that one filled up while the confirmation was open. Returns the new row's id, or
      * null when nothing was added: `accept()` refused (false or threw) and nothing was stored, or
-     * the row could not be stored after a successful accept, in which case the system's pinned set
-     * is put back to what the home rows hold. A widget request goes through [acceptWidget].
+     * after a successful accept the system shows no pin for it (a request another app made up) or
+     * the row could not be stored, in which case the system's pinned set is put back to what the
+     * home rows hold. A widget request goes through [acceptWidget].
      */
     suspend fun accept(request: PinRequest, placement: PinDecision.Confirm, columns: Int, rows: Int): Long? {
         val item = request.item as? PinItem.Shortcut ?: return null
@@ -335,14 +336,21 @@ class PinRequestStore @Inject constructor(
         request: PinRequest, item: PinItem.Shortcut, placement: PinDecision.Confirm, columns: Int, rows: Int,
     ): Long? {
         if (!runCatching { request.accept() }.getOrDefault(false)) return null
-        val rowId = runCatching {
-            homeLayoutRepository.insertRequestedShortcut(
-                item.packageName, item.shortcutId, item.userSerial,
-                placement.page, placement.cellX, placement.cellY, columns, rows,
-            )
-        }.getOrNull()
+        // Only a pin the system really made gets a row: the confirmation is an exported activity, and a
+        // request another app made up "accepts" without pinning anything.
+        val pinned = runCatching { resolver.isPinnedHere(item.packageName, item.userSerial, item.shortcutId) }.getOrNull() == true
+        val rowId = if (!pinned) {
+            null
+        } else {
+            runCatching {
+                homeLayoutRepository.insertRequestedShortcut(
+                    item.packageName, item.shortcutId, item.userSerial,
+                    placement.page, placement.cellX, placement.cellY, columns, rows,
+                )
+            }.getOrNull()
+        }
         if (rowId == null) {
-            // The system set now holds the id but no row mirrors it: pin exactly what home holds.
+            // The system set may hold the id now but no row mirrors it: pin exactly what home holds.
             runCatching {
                 val onHome = homeLayoutRepository.homeShortcutIds(item.packageName, item.userSerial)
                 resolver.pinShortcuts(item.packageName, item.userSerial, onHome)

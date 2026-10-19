@@ -51,4 +51,8 @@ interface AppRowResolver {
     /** Replaces the system pin set of (package, profile) with exactly [shortcutIds]; false when the
      *  system refused (not the default home app, profile unavailable). */
     fun pinShortcuts(packageName: String, userSerial: Long, shortcutIds: List<String>): Boolean
+
+    /** Whether the system has [shortcutId] of (package, profile) pinned for this launcher right now;
+     *  null when that can't be told (not the default home app, profile unavailable, an error). */
+    fun isPinnedHere(packageName: String, userSerial: Long, shortcutId: String): Boolean?
 }
