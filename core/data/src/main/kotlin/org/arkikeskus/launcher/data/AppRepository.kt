@@ -45,11 +45,11 @@ class AppRepository @Inject constructor(
         }
     }.shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
-    /** See [LauncherAppsSource.packageEvents]. */
-    val packageEvents: Flow<String> get() = source.packageEvents
+    /** See [LauncherAppsSource.packageEvents] (batches, for one collector). */
+    val packageEvents: Flow<Set<String>> get() = source.packageEvents
 
-    /** See [LauncherAppsSource.packageRemovals]. */
-    val packageRemovals: Flow<Pair<String, Long>> get() = source.packageRemovals
+    /** See [LauncherAppsSource.packageRemovals] (batches, for one collector). */
+    val packageRemovals: Flow<Set<Pair<String, Long>>> get() = source.packageRemovals
 
     /** See [LauncherAppsSource.shortcutChanges] (batches, for one collector). */
     val shortcutChanges: Flow<Set<Pair<String, Long>>> get() = source.shortcutChanges

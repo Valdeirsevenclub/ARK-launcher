@@ -24,12 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.model.AppItem
@@ -61,40 +58,28 @@ class LauncherAppsSource @Inject constructor(
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val userManager = context.getSystemService(UserManager::class.java)
 
-    /** Package names from LauncherApps callbacks — lets feature-layer caches (e.g. resolved pinned
-     *  shortcuts) invalidate per package instead of guessing from full app-list reloads. */
-    private val _packageEvents = MutableSharedFlow<String>(extraBufferCapacity = 16)
-    val packageEvents: SharedFlow<String> = _packageEvents
+    /** Package names from LauncherApps callbacks, in batches for ONE collector ([EventPool]) — lets
+     *  feature-layer caches (e.g. resolved pinned shortcuts) invalidate per package instead of
+     *  guessing from full app-list reloads. */
+    private val packageEventPool = EventPool<String>()
+    val packageEvents: Flow<Set<String>> = packageEventPool.batches
 
-    /** (package, profile serial) from onPackageRemoved — a DEFINITIVE uninstall for that profile.
-     *  Updates fire onPackageChanged and storage ejection onPackagesUnavailable, so neither can
-     *  reach this flow and trigger a wrongful home-row cleanup. */
-    private val _packageRemovals = MutableSharedFlow<Pair<String, Long>>(extraBufferCapacity = 16)
-    val packageRemovals: SharedFlow<Pair<String, Long>> = _packageRemovals
+    /** (package, profile serial) from onPackageRemoved — a DEFINITIVE uninstall for that profile —
+     *  in batches for ONE collector ([EventPool]): an uninstall during a burst, or while no
+     *  ViewModel is there to collect, must still reach the home-row cleanup. Updates fire
+     *  onPackageChanged and storage ejection onPackagesUnavailable, so neither can reach this flow
+     *  and trigger a wrongful cleanup. */
+    private val packageRemovalPool = EventPool<Pair<String, Long>>()
+    val packageRemovals: Flow<Set<Pair<String, Long>>> = packageRemovalPool.batches
 
     /**
      * (package, profile serial) whose app shortcuts were added, updated, disabled or removed, in
-     * batches for ONE collector. The owners pool in a set while the collector is busy (the home
-     * collector waits for [ShortcutPinLock] through a whole restore) and reach it together once it
-     * is free: nothing is dropped, however long the wait, and the backlog can't outgrow the number
-     * of distinct owners however often a chat app re-publishes. A shared flow with a fixed buffer
-     * dropped the 17th notice of such a wait, and that app's home shortcuts then stayed stale.
+     * batches for ONE collector ([EventPool]). The home collector waits for [ShortcutPinLock]
+     * through a whole restore, and a chat app re-publishes on every message: the pool keeps every
+     * owner of that time without a backlog.
      */
-    private val pendingShortcutOwners = HashSet<Pair<String, Long>>()
-    private val shortcutWakeups = Channel<Unit>(Channel.CONFLATED)
-    val shortcutChanges: Flow<Set<Pair<String, Long>>> = flow {
-        for (unused in shortcutWakeups) {
-            val owners = synchronized(pendingShortcutOwners) {
-                pendingShortcutOwners.toSet().also { pendingShortcutOwners.clear() }
-            }
-            if (owners.isNotEmpty()) emit(owners)
-        }
-    }
-
-    private fun shortcutsChanged(packageName: String, userSerial: Long) {
-        synchronized(pendingShortcutOwners) { pendingShortcutOwners += packageName to userSerial }
-        shortcutWakeups.trySend(Unit)
-    }
+    private val shortcutChangePool = EventPool<Pair<String, Long>>()
+    val shortcutChanges: Flow<Set<Pair<String, Long>>> = shortcutChangePool.batches
 
     /** Re-fetch tokens for app icons (see [IconEpochs]): a package update bumps that package, an
      *  icon-pack content change bumps the global generation. AppIcon feeds these into the Coil
@@ -216,7 +201,7 @@ class LauncherAppsSource @Inject constructor(
         }
 
         fun packageEvent(vararg packageNames: String, iconsMayHaveChanged: Boolean = false) {
-            packageNames.forEach { _packageEvents.tryEmit(it) }
+            packageNames.forEach { packageEventPool.add(it) }
             // An updated/replaced package bumps its icon epoch: the epoch is in the Coil model/cache
             // key, so the changed app's icon re-fetches everywhere — including AsyncImages already on
             // screen (dock, open home page, drawer top), which only re-launch when the model changes.
@@ -237,7 +222,7 @@ class LauncherAppsSource @Inject constructor(
             override fun onPackageAdded(packageName: String, user: UserHandle) = packageEvent(packageName)
             override fun onPackageRemoved(packageName: String, user: UserHandle) {
                 val serial = runCatching { userManager?.getSerialNumberForUser(user) }.getOrNull() ?: 0L
-                _packageRemovals.tryEmit(packageName to serial)
+                packageRemovalPool.add(packageName to serial)
                 packageEvent(packageName)
             }
             override fun onPackageChanged(packageName: String, user: UserHandle) =
@@ -251,7 +236,7 @@ class LauncherAppsSource @Inject constructor(
             // shortcuts on every message, and those must not rescan the app list.
             override fun onShortcutsChanged(packageName: String, shortcuts: MutableList<ShortcutInfo>, user: UserHandle) {
                 val serial = runCatching { userManager?.getSerialNumberForUser(user) }.getOrNull() ?: 0L
-                shortcutsChanged(packageName, serial)
+                shortcutChangePool.add(packageName to serial)
             }
         }
 

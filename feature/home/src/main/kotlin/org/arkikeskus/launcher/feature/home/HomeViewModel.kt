@@ -248,9 +248,10 @@ class HomeViewModel @Inject constructor(
             }
         }
         // A package update can change a pinned shortcut's label/icon; drop its cached resolutions
-        // so the uiState combine re-resolves them.
+        // so the uiState combine re-resolves them. Batches: the events of a burst pool up in the
+        // repository instead of overflowing a buffer.
         viewModelScope.launch {
-            appRepository.packageEvents.collect { pkg -> shortcutCache.invalidate(pkg) }
+            appRepository.packageEvents.collect { packages -> packages.forEach(shortcutCache::invalidate) }
         }
         // So can the app itself at any time (a new name or photo, disabling or removing one), as
         // Launcher3's ShortcutsChangedTask handles. Most of these events come from apps with nothing
@@ -269,9 +270,16 @@ class HomeViewModel @Inject constructor(
         // Ghost-row hygiene: an uninstalled app's home rows never render but still occupy their
         // cells, silently blocking placement/resizes/moves with no visible reason. Delete them on
         // the uninstall event, and sweep once per launch for uninstalls the launcher slept through.
+        // A removal may be handled late — it pools for a ViewModel created later, after the activity
+        // was destroyed behind Settings — and by then the app can be back: reinstalled, with a
+        // shortcut pinned through the confirmation, which runs without a ViewModel. So rows go only
+        // while the app is still gone; the check is fail-safe (an app it cannot judge keeps its rows).
         viewModelScope.launch {
-            appRepository.packageRemovals.collect { (pkg, serial) ->
-                homeLayoutRepository.removeAppRowsForPackage(pkg, serial)
+            appRepository.packageRemovals.collect { removed ->
+                removed.forEach { (pkg, serial) ->
+                    val stillGone = withContext(Dispatchers.IO) { !appRepository.isAppInstalled(pkg, serial) }
+                    if (stillGone) homeLayoutRepository.removeAppRowsForPackage(pkg, serial)
+                }
             }
         }
         viewModelScope.launch {
