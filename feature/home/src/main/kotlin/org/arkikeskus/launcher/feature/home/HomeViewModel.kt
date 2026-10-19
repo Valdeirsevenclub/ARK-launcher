@@ -13,7 +13,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -28,12 +31,14 @@ import kotlinx.coroutines.withContext
 import org.arkikeskus.launcher.data.AppRepository
 import org.arkikeskus.launcher.data.HomeLayoutRepository
 import org.arkikeskus.launcher.data.NotificationBadgeRepository
+import org.arkikeskus.launcher.data.PlaceResult
 import org.arkikeskus.launcher.data.ShortcutPinLock
 import org.arkikeskus.launcher.data.SettingsRepository
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.model.LauncherSettings
 import org.arkikeskus.launcher.ui.AppShortcuts
+import org.arkikeskus.launcher.ui.HomeNotice
 import javax.inject.Inject
 
 /** How long the themed status bar stays blanked after a heads-up post; SystemUI auto-dismisses a
@@ -52,7 +57,6 @@ const val SMARTSPACE_MIN_SPAN_X = 3
 /** Edit-frame default width of the built-in notifications widget (the picker ADDS it full-width —
  *  a narrower footprint can't center its icon group on an odd column count). */
 const val NOTIFICATIONS_DEFAULT_SPAN_X = 4
-const val NOTIFICATIONS_DEFAULT_SPAN_Y = 1
 
 /** Smallest allowed notifications-widget width — one icon + the overflow chip still fit. */
 const val NOTIFICATIONS_MIN_SPAN_X = 2
@@ -172,6 +176,11 @@ class HomeViewModel @Inject constructor(
     notificationBadgeRepository: NotificationBadgeRepository,
     private val signalMonitor: org.arkikeskus.launcher.launcher.system.SignalMonitor,
 ) : ViewModel() {
+
+    private val _notices = Channel<HomeNotice>(Channel.BUFFERED)
+
+    /** One-shot notices for the screen to show, each delivered once (see [HomeNotice]). */
+    val notices: Flow<HomeNotice> = _notices.receiveAsFlow()
 
     /** True while the first-run intro should cover the home screen (fresh installs only). */
     private val _showOnboarding = kotlinx.coroutines.flow.MutableStateFlow(false)
@@ -457,15 +466,10 @@ class HomeViewModel @Inject constructor(
         context, shortcut.packageName, shortcut.shortcutId, shortcut.userSerial, shortcut.enabled, shortcut.disabledMessage,
     )
 
-    /** Stores a pinned shortcut on home (the system-level pin is done by the caller, which has a
-     *  Context). Idempotent — the repository skips one already present. */
-    fun addPinnedShortcut(packageName: String, shortcutId: String, userSerial: Long) = viewModelScope.launch {
-        ShortcutPinLock.withLock { storePinnedShortcut(packageName, shortcutId, userSerial) }
-    }
-
-    private suspend fun storePinnedShortcut(packageName: String, shortcutId: String, userSerial: Long) {
+    /** Stores a pinned shortcut on home; false when every page the pager shows is full. */
+    private suspend fun storePinnedShortcut(packageName: String, shortcutId: String, userSerial: Long): Boolean {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.addShortcut(packageName, shortcutId, userSerial, s.homeColumns, s.homeRows)
+        return homeLayoutRepository.addShortcut(packageName, shortcutId, userSerial, s.homeColumns, s.homeRows)
     }
 
     /** Removes a folder together with its apps — offered only for a folder that shows no apps (all
@@ -486,17 +490,18 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Pins [item] in the system (IO — the Binder round-trips must not run on the main thread) and
-     *  places it on the home grid only if the system pin succeeded (else it would be a dead cell). */
+     *  places it on the home grid only if the system pin succeeded (else it would be a dead cell).
+     *  When home has no room for it the system pin is released again — re-pinned to the ids home
+     *  shows, as [removeShortcut] does — so the system never holds a shortcut home cannot show. */
     fun pinShortcut(item: AppShortcuts.Item) = viewModelScope.launch {
         ShortcutPinLock.withLock {
-            if (AppShortcuts.pin(context, item)) storePinnedShortcut(item.packageName, item.id, item.userSerial)
+            if (!AppShortcuts.pin(context, item)) return@withLock
+            if (!storePinnedShortcut(item.packageName, item.id, item.userSerial)) {
+                val remaining = homeLayoutRepository.homeShortcutIds(item.packageName, item.userSerial)
+                AppShortcuts.setPinned(context, item.packageName, item.userSerial, remaining)
+                notify(HomeNotice.HomeFull)
+            }
         }
-    }
-
-    /** Places a freshly-bound widget on the home grid (spans are the picker's default). */
-    fun addWidget(appWidgetId: Int, provider: String, spanX: Int, spanY: Int) = viewModelScope.launch {
-        val s = settingsRepository.settings.first()
-        homeLayoutRepository.addWidget(appWidgetId, provider, spanX, spanY, s.homeColumns, s.homeRows)
     }
 
     suspend fun addWidgetAt(
@@ -551,35 +556,6 @@ class HomeViewModel @Inject constructor(
     /** Removes a placed widget row (caller frees the host id). */
     fun removeWidget(rowId: Long) = viewModelScope.launch { homeLayoutRepository.removeWidget(rowId) }
 
-    /** Adds the built-in smartspace widget at the first free full-width rectangle (widget picker). */
-    fun addSmartspace() = viewModelScope.launch {
-        val s = settingsRepository.settings.first()
-        homeLayoutRepository.addBuiltin(
-            HomeItemEntity.BUILTIN_SMARTSPACE,
-            s.homeColumns, SMARTSPACE_DEFAULT_SPAN_Y, s.homeColumns, s.homeRows,
-        )
-    }
-
-    /** Adds the built-in notifications widget at the first free full-width rectangle (widget picker).
-     *  Full width like the smartspace clock: the icon group centers inside its own footprint, so any
-     *  narrower default could never sit symmetric on an odd column count (e.g. 4 wide in 5 columns). */
-    fun addNotificationsWidget() = viewModelScope.launch {
-        val s = settingsRepository.settings.first()
-        homeLayoutRepository.addBuiltin(
-            HomeItemEntity.BUILTIN_NOTIFICATIONS,
-            s.homeColumns, NOTIFICATIONS_DEFAULT_SPAN_Y, s.homeColumns, s.homeRows,
-        )
-    }
-
-    /** Adds the built-in battery widget (an app-icon-sized ring) at the first free cell (widget picker). */
-    fun addBatteryWidget() = viewModelScope.launch {
-        val s = settingsRepository.settings.first()
-        homeLayoutRepository.addBuiltin(
-            HomeItemEntity.BUILTIN_BATTERY,
-            BATTERY_SPAN, BATTERY_SPAN, s.homeColumns, s.homeRows,
-        )
-    }
-
     /** Turns bound widget rows whose id this device's host never allocated back into placeholders
      *  (the Google Auto Backup / device-transfer restore path — see HomeScreen's startup sweep). */
     suspend fun unbindStaleWidgets(validIds: Set<Int>) = homeLayoutRepository.unbindStaleWidgets(validIds)
@@ -606,7 +582,12 @@ class HomeViewModel @Inject constructor(
 
     fun addToHome(appItem: AppItem) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.addToHome(appItem, s.homeColumns, s.homeRows)
+        if (!homeLayoutRepository.addToHome(appItem, s.homeColumns, s.homeRows)) notify(HomeNotice.HomeFull)
+    }
+
+    /** Queues a notice for the screen; the buffer absorbs a burst while nothing collects yet. */
+    private fun notify(notice: HomeNotice) {
+        _notices.trySend(notice)
     }
 
     /** Moves/swaps a home shortcut; returns whether the repository accepted it (see [Workspace]). */
@@ -630,8 +611,10 @@ class HomeViewModel @Inject constructor(
         // Add-first so an interruption can only duplicate, never lose; NonCancellable so a
         // ViewModel clear between the halves can't strand the item on both surfaces.
         withContext(NonCancellable) {
-            if (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows)) {
-                settingsRepository.removeFromDock(appItem.key)
+            when (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows)) {
+                PlaceResult.Placed -> settingsRepository.removeFromDock(appItem.key)
+                PlaceResult.HomeFull -> notify(HomeNotice.HomeFull)
+                PlaceResult.Blocked -> Unit // the icon snaps back to the dock
             }
         }
     }
@@ -658,7 +641,9 @@ class HomeViewModel @Inject constructor(
     /** Take an app out of a folder back onto the home screen (dissolves the folder if one is left). */
     fun removeFromFolder(appItem: AppItem, folderId: Long) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.removeFromFolder(appItem, folderId, s.homeColumns, s.homeRows)
+        if (!homeLayoutRepository.removeFromFolder(appItem, folderId, s.homeColumns, s.homeRows)) {
+            notify(HomeNotice.HomeFull)
+        }
     }
 
     fun renameFolder(folderId: Long, name: String) =

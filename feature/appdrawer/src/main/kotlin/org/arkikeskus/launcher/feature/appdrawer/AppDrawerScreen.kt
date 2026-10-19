@@ -131,6 +131,12 @@ fun AppDrawerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // What the ViewModel could not do for the user (e.g. the home screen is full), shown once each.
+    LaunchedEffect(viewModel) {
+        viewModel.notices.collect { notice ->
+            android.widget.Toast.makeText(context, notice.message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
     var menuTarget by remember { mutableStateOf<Pair<AppItem, Rect>?>(null) }
     var renameTarget by remember { mutableStateOf<AppItem?>(null) }
     var openFolderId by remember { mutableStateOf<Long?>(null) }

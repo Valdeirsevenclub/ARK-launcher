@@ -8,4 +8,5 @@
     <string name="shortcut_pin">Épingler sur l\'écran d\'accueil</string>
     <string name="shortcut_unavailable">Raccourci non disponible</string>
     <string name="app_info_unavailable">Impossible d\'ouvrir les infos sur l\'application</string>
+    <string name="home_full">L\'écran d\'accueil est plein</string>
 </resources>

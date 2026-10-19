@@ -102,6 +102,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.model.LauncherSettings
+import org.arkikeskus.launcher.data.HomeLayoutRepository
 import org.arkikeskus.launcher.data.ReorderPlanner
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.ui.DragSource
@@ -448,7 +449,10 @@ internal fun Workspace(
             }
         }
         widgetDragController.findSpace = { sx, sy ->
-            val pages = listOf(pagerState.currentPage) + (0..pageCount).filter { it != pagerState.currentPage }
+            // The current page first, then the rest including the trailing one — but never a page
+            // the pager only offers while dragging (at the cap it is the first page's copy).
+            val pages = (listOf(pagerState.currentPage) + (0..pageCount).filter { it != pagerState.currentPage })
+                .filter { HomeLayoutRepository.isShownPage(it) }
             pages.firstNotNullOfOrNull { page ->
                 val candidates = (0..(rows - sy)).flatMap { y ->
                     (0..(columns - sx)).map { x -> WidgetPlacement(page, x, y, sx, sy) }

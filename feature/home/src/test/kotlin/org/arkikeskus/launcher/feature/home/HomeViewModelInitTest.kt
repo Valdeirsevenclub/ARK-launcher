@@ -1,41 +1,16 @@
 package org.arkikeskus.launcher.feature.home
 
 import android.app.Application
-import android.content.Context
-import android.content.Intent
-import android.content.pm.LauncherApps
-import android.content.pm.ShortcutInfo
 import android.os.Looper
-import androidx.lifecycle.ViewModelStore
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.arkikeskus.launcher.data.AppRepository
-import org.arkikeskus.launcher.data.AppUsageRepository
-import org.arkikeskus.launcher.data.HomeLayoutRepository
-import org.arkikeskus.launcher.data.IconPackRepository
-import org.arkikeskus.launcher.data.LauncherAppsSource
-import org.arkikeskus.launcher.data.NotificationBadgeRepository
-import org.arkikeskus.launcher.data.SettingsRepository
-import org.arkikeskus.launcher.data.local.HomeItemDao
-import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.data.local.HomeItemEntity.Companion.HOME
-import org.arkikeskus.launcher.data.local.LauncherDatabase
-import org.arkikeskus.launcher.launcher.system.SignalMonitor
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.io.File
-import javax.inject.Provider
-import kotlin.jvm.functions.Function0
 
 /**
  * The init block starts its collectors on `Main.immediate`, i.e. synchronously inside the
@@ -50,7 +25,7 @@ class HomeViewModelInitTest {
     private val context: Application = RuntimeEnvironment.getApplication()
 
     @Test fun aShortcutChangePooledBeforeTheViewModelExistedDoesNotCrashItsCreation() = runTest {
-        val wiring = ProductionWiring(this)
+        val wiring = ProductionWiring(context, this)
         try {
             val row = wiring.pinOnHome("chat")
             wiring.publishShortcut("chat") // nothing is collecting yet: the change pools in the repository
@@ -66,7 +41,7 @@ class HomeViewModelInitTest {
     }
 
     @Test fun aViewModelCreatedWithNothingPooledStartsNormally() = runTest {
-        val wiring = ProductionWiring(this)
+        val wiring = ProductionWiring(context, this)
         try {
             val row = wiring.pinOnHome("chat")
 
@@ -77,77 +52,6 @@ class HomeViewModelInitTest {
             wiring.clear(viewModel)
         } finally {
             wiring.close()
-        }
-    }
-
-    /**
-     * The ViewModel's real collaborators, wired as DataModule wires them but without Hilt: an
-     * in-memory Room database, a DataStore on a temp file and the real LauncherApps callback path.
-     * Room, DataStore and Coil are implementation details of core/data and not on this module's
-     * test compile classpath (they are on its runtime classpath), so the few calls that would name
-     * their types go through reflection.
-     */
-    private inner class ProductionWiring(testScope: TestScope) {
-        private val dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-        val db: LauncherDatabase = Class.forName("androidx.room.Room")
-            .getMethod("inMemoryDatabaseBuilder", Context::class.java, Class::class.java)
-            .invoke(null, context, LauncherDatabase::class.java)
-            .let { builder -> builder.javaClass.getMethod("allowMainThreadQueries").invoke(builder) }
-            .let { builder -> builder.javaClass.getMethod("build").invoke(builder) as LauncherDatabase }
-        val dao = LauncherDatabase::class.java.getMethod("homeItemDao").invoke(db) as HomeItemDao
-
-        private val dataStore: Any = Class.forName("androidx.datastore.preferences.core.PreferenceDataStoreFactory").let { factory ->
-            val file = File.createTempFile("launcher_settings", ".preferences_pb", context.cacheDir).also { it.delete() }
-            val produceFile: () -> File = { file }
-            factory.methods
-                .single { it.name == "create" && it.parameterCount == 4 && it.parameterTypes.last() == Function0::class.java }
-                .invoke(factory.getField("INSTANCE").get(null), null, emptyList<Any>(), dataStoreScope, produceFile)
-        }
-        val settingsRepository = SettingsRepository::class.java.constructors.single().newInstance(dataStore) as SettingsRepository
-        private val appUsageRepository = AppUsageRepository::class.java.constructors.single().newInstance(dataStore) as AppUsageRepository
-
-        /** The image loader is only used for icons; its type (Coil) is what keeps this reflective. */
-        private val source = LauncherAppsSource::class.java.constructors.single()
-            .newInstance(context, IconPackRepository(context), Provider<Any?> { error("unused") }) as LauncherAppsSource
-
-        /** Eagerly shared, like the application scope in the app: the LauncherApps callback registers
-         *  right here, so a shortcut published after this is reported whether or not anyone collects. */
-        val appRepository = AppRepository(
-            source, settingsRepository, appUsageRepository,
-            CoroutineScope(testScope.backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScope.testScheduler)),
-        )
-        val homeLayoutRepository = HomeLayoutRepository(db, dao, source)
-
-        suspend fun pinOnHome(shortcutId: String): Long = dao.insert(
-            HomeItemEntity(packageName = context.packageName, shortcutId = shortcutId, page = 0, cellX = 0, cellY = 0),
-        )
-
-        /** The test app publishes a shortcut; the system's callback runs once the main looper idles. */
-        fun publishShortcut(shortcutId: String) {
-            val info = ShortcutInfo.Builder(context, shortcutId).setShortLabel(shortcutId).setIntent(Intent(Intent.ACTION_VIEW)).build()
-            shadowOf(context.getSystemService(LauncherApps::class.java)).addDynamicShortcut(info)
-            shadowOf(Looper.getMainLooper()).idle()
-        }
-
-        /** Creates the ViewModel on the main thread with the first-run work already done, as on
-         *  every launch after the first. */
-        suspend fun homeViewModel(): HomeViewModel {
-            settingsRepository.setDefaultLayoutSeeded()
-            settingsRepository.setOnboardingDone()
-            return HomeViewModel(
-                context, settingsRepository, appRepository, homeLayoutRepository, NotificationBadgeRepository(), SignalMonitor(context),
-            )
-        }
-
-        fun clear(viewModel: HomeViewModel) = ViewModelStore().run {
-            put("home", viewModel)
-            clear()
-        }
-
-        fun close() {
-            dataStoreScope.cancel()
-            db.javaClass.getMethod("close").invoke(db)
         }
     }
 }

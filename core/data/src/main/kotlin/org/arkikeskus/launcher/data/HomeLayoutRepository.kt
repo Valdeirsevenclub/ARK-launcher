@@ -26,6 +26,18 @@ internal data class SweepPlan(val delete: Set<Long>, val remap: Map<Long, String
  *  (rowId → new cell on [page]) that free it. Empty [moved] = the rect was genuinely free. */
 data class PushPlacement(val page: Int, val cellX: Int, val cellY: Int, val moved: Map<Long, Pair<Int, Int>>)
 
+/** What became of a placement at a cell the user chose ([HomeLayoutRepository.placeAt]). */
+enum class PlaceResult {
+    /** Stored at the cell, or at the first free cell when the chosen one was taken. */
+    Placed,
+
+    /** The app is already on home and the cell lies inside a widget's rectangle; nothing changed. */
+    Blocked,
+
+    /** No free cell on any page the pager shows ([HomeLayoutRepository.isShownPage]); nothing changed. */
+    HomeFull,
+}
+
 /**
  * Persists the home layout (Room): app shortcuts and folders placed at free cells, and the apps
  * inside each folder. Top-level items live in the [HOME] container; a folder's children live in the
@@ -41,17 +53,20 @@ class HomeLayoutRepository @Inject constructor(
     /** All rows (home items, folders, folder children); the ViewModel partitions by container. */
     val homeItems: Flow<List<HomeItemEntity>> = dao.observeAll()
 
-    suspend fun addToHome(appItem: AppItem, columns: Int, rows: Int) {
+    /** Puts [appItem] at the first free home cell. True when it is on home afterwards (placed now or
+     *  already there); false — nothing stored — when every page the pager shows is full. */
+    suspend fun addToHome(appItem: AppItem, columns: Int, rows: Int): Boolean =
         // Atomic count-then-insert: without a transaction a fast double call could read "absent" twice
         // and place the same app into two different cells.
         db.withTransaction {
             if (dao.count(HOME, appItem.packageName, appItem.className, appItem.userSerial) > 0) {
-                return@withTransaction
+                return@withTransaction true
             }
             val (page, cellX, cellY) = firstFreeCell(dao.getContainer(HOME), columns, rows)
+            if (!isShownPage(page)) return@withTransaction false
             dao.insert(homeApp(appItem, HOME, page, cellX, cellY))
+            true
         }
-    }
 
     /** Moves/swaps a home item to a target home cell. Returns false if the item is gone OR the target
      *  is inside a widget's rectangle (so the caller rolls its optimistic placement back). */
@@ -62,23 +77,30 @@ class HomeLayoutRepository @Inject constructor(
             moveOrSwap(source, page, cellX, cellY)
         }
 
-    /** Places [appItem] on the home screen at a cell (used for a dock→home drop), swapping/falling back. */
-    suspend fun placeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int, columns: Int, rows: Int): Boolean =
+    /** Places [appItem] on the home screen at a cell (a dock→home or drawer→home drop), swapping with
+     *  an app already there or falling back to the first free cell. Nothing is stored unless the
+     *  result is [PlaceResult.Placed]. */
+    suspend fun placeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int, columns: Int, rows: Int): PlaceResult =
         db.withTransaction {
             val existing = dao.getByKey(HOME, appItem.packageName, appItem.className, appItem.userSerial)
             if (existing != null) {
-                return@withTransaction moveOrSwap(existing, page, cellX, cellY)
+                return@withTransaction when {
+                    !isShownPage(page) -> PlaceResult.HomeFull
+                    moveOrSwap(existing, page, cellX, cellY) -> PlaceResult.Placed
+                    else -> PlaceResult.Blocked
+                }
             }
             val items = dao.getContainer(HOME)
-            val (p, x, y) = if (dao.getAt(HOME, page, cellX, cellY) == null &&
+            val (p, x, y) = if (isShownPage(page) && dao.getAt(HOME, page, cellX, cellY) == null &&
                 !cellInWidget(items, -1L, page, cellX, cellY)
             ) {
                 Triple(page, cellX, cellY)
             } else {
                 firstFreeCell(items, columns, rows)
             }
+            if (!isShownPage(p)) return@withTransaction PlaceResult.HomeFull
             dao.insert(homeApp(appItem, HOME, p, x, y))
-            true
+            PlaceResult.Placed
         }
 
     suspend fun removeFromHome(appItem: AppItem) {
@@ -92,14 +114,16 @@ class HomeLayoutRepository @Inject constructor(
             moveOrSwap(source, page, cellX, cellY)
         }
 
-    /** Pins a deep shortcut at the first free home cell (no-op if it's already on home). */
-    suspend fun addShortcut(packageName: String, shortcutId: String, userSerial: Long, columns: Int, rows: Int) {
+    /** Pins a deep shortcut at the first free home cell. True when it is on home afterwards (placed
+     *  now or already there); false — nothing stored — when every page the pager shows is full. */
+    suspend fun addShortcut(packageName: String, shortcutId: String, userSerial: Long, columns: Int, rows: Int): Boolean =
         db.withTransaction {
             val present = dao.getContainer(HOME).any {
                 it.shortcutId == shortcutId && it.packageName == packageName && it.userSerial == userSerial
             }
-            if (present) return@withTransaction
+            if (present) return@withTransaction true
             val (page, x, y) = firstFreeCell(dao.getContainer(HOME), columns, rows)
+            if (!isShownPage(page)) return@withTransaction false
             dao.insert(
                 HomeItemEntity(
                     containerId = HOME,
@@ -111,8 +135,8 @@ class HomeLayoutRepository @Inject constructor(
                     cellY = y,
                 ),
             )
+            true
         }
-    }
 
     /**
      * Stores the shortcut another app asked to pin ([PinRequestStore]). Unlike [addShortcut], one
@@ -120,7 +144,7 @@ class HomeLayoutRepository @Inject constructor(
      * produce a new icon. Goes to ([page], [cellX], [cellY]) — the cell the confirmation decided on —
      * if it is still free, else to the first free cell: home may have changed while the confirmation
      * was open. Both are judged inside the transaction. Null (nothing stored) when even that cell
-     * is not on a page the pager shows ([isRequestPage]).
+     * is not on a page the pager shows ([isShownPage]).
      */
     suspend fun insertRequestedShortcut(
         packageName: String, shortcutId: String, userSerial: Long,
@@ -132,7 +156,7 @@ class HomeLayoutRepository @Inject constructor(
         } else {
             firstFreeCell(items, columns, rows)
         }
-        if (!isRequestPage(p)) return@withTransaction null
+        if (!isShownPage(p)) return@withTransaction null
         dao.insert(
             HomeItemEntity(
                 containerId = HOME,
@@ -152,7 +176,7 @@ class HomeLayoutRepository @Inject constructor(
      * ([page], [cellX], [cellY]) — the rectangle the confirmation decided on — if it is still free,
      * else to the first free rectangle of the same size; nothing else is moved for it. Both are
      * judged inside the transaction. Null (nothing stored) when even that is not on a page the
-     * pager shows ([isRequestPage]).
+     * pager shows ([isShownPage]).
      */
     suspend fun insertRequestedWidget(
         appWidgetId: Int, provider: String,
@@ -166,7 +190,7 @@ class HomeLayoutRepository @Inject constructor(
         } else {
             firstFreeRect(items, columns, sx, sy, rows)
         }
-        if (!isRequestPage(p)) return@withTransaction null
+        if (!isShownPage(p)) return@withTransaction null
         dao.insert(
             HomeItemEntity(
                 containerId = HOME,
@@ -264,22 +288,24 @@ class HomeLayoutRepository @Inject constructor(
      * Moves [appItem] out of [folderId] back to a free home cell. Re-indexes the remaining children;
      * if only one is left the folder is dissolved (the last app takes the folder's cell). An app that
      * already has a home icon merges into it instead: the UI keys icons by app, so a second HOME row
-     * of one app breaks drag and remove (both rows go, one stays invisible).
+     * of one app breaks drag and remove (both rows go, one stays invisible). False — the app stays
+     * in the folder — when it needs a cell and every page the pager shows is full.
      */
-    suspend fun removeFromFolder(appItem: AppItem, folderId: Long, columns: Int, rows: Int) {
+    suspend fun removeFromFolder(appItem: AppItem, folderId: Long, columns: Int, rows: Int): Boolean =
         db.withTransaction {
             val row = dao.getByKey(folderId, appItem.packageName, appItem.className, appItem.userSerial)
-                ?: return@withTransaction
+                ?: return@withTransaction true
             if (onHome(row)) {
                 dao.deleteById(row.id)
             } else {
                 val (p, x, y) = firstFreeCell(dao.getContainer(HOME), columns, rows)
+                if (!isShownPage(p)) return@withTransaction false
                 dao.moveById(row.id, HOME, p, x, y)
             }
             reindexFolder(folderId)
             dissolveIfNeeded(folderId)
+            true
         }
-    }
 
     suspend fun renameFolder(folderId: Long, name: String) {
         dao.renameFolder(folderId, name)
@@ -332,11 +358,13 @@ class HomeLayoutRepository @Inject constructor(
      * Moves [source] to a target cell in the [HOME] container, swapping with the cell's occupant if
      * any. Call inside a transaction: the swap parks [source] off-grid so the unique index holds.
      * Returns false (no change) when the target is inside a widget's rectangle (bound OR a restored
-     * placeholder) — the caller uses this to roll back its optimistic placement so the icon snaps back
-     * instead of ending up hidden under the widget.
+     * placeholder) or not on a page the pager shows ([isShownPage]) — the caller uses this to roll
+     * back its optimistic placement so the icon snaps back instead of ending up hidden under the
+     * widget or on the trailing page.
      */
     private suspend fun moveOrSwap(source: HomeItemEntity, page: Int, cellX: Int, cellY: Int): Boolean {
         if (source.page == page && source.cellX == cellX && source.cellY == cellY) return true
+        if (!isShownPage(page)) return false
         // Widgets occupy a rectangle and aren't swappable in MVP: cancel a drop onto/into one.
         if (cellInWidget(dao.getContainer(HOME), source.id, page, cellX, cellY)) return false
         val occupant = dao.getAt(HOME, page, cellX, cellY)
@@ -388,27 +416,9 @@ class HomeLayoutRepository @Inject constructor(
         for ((id, pos) in p.moved) dao.moveById(id, HOME, p.page, pos.first, pos.second)
     }
 
-    /** Places a bound widget at the first [spanX]×[spanY] rectangle on the home grid, pushing
-     *  overlapping icons aside before spilling onto a fresh page (see [firstRectWithPush]). */
-    suspend fun addWidget(appWidgetId: Int, provider: String, spanX: Int, spanY: Int, columns: Int, rows: Int) {
-        db.withTransaction {
-            val placement = firstRectWithPush(dao.getContainer(HOME), columns, spanX, spanY, rows)
-            applyPush(placement)
-            val (page, x, y) = Triple(placement.page, placement.cellX, placement.cellY)
-            dao.insert(
-                HomeItemEntity(
-                    containerId = HOME,
-                    page = page, cellX = x, cellY = y,
-                    spanX = spanX.coerceIn(1, columns.coerceAtLeast(1)),
-                    spanY = spanY.coerceIn(1, rows.coerceAtLeast(1)),
-                    appWidgetId = appWidgetId,
-                    widgetProvider = provider,
-                ),
-            )
-        }
-    }
-
-    /** Revalidate a user-selected drop after binding/configuration; never relocate it silently. */
+    /** Revalidate a user-selected drop after binding/configuration; never relocate it silently.
+     *  False — nothing stored — when the rectangle is not on a page the pager shows or nothing can
+     *  be pushed aside to free it. */
     suspend fun addWidgetAt(
         appWidgetId: Int?,
         provider: String?,
@@ -421,7 +431,7 @@ class HomeLayoutRepository @Inject constructor(
         // A configuration result may be redelivered after process recreation.
         if (appWidgetId != null && items.any { it.appWidgetId == appWidgetId }) return@withTransaction true
         val p = placement
-        if (p.page !in 0..MAX_PAGES) return@withTransaction false
+        if (!isShownPage(p.page)) return@withTransaction false
         val plan = ReorderPlanner.planFit(
             items.map { ReorderPlanner.Rect(it.id, it.page, it.cellX, it.cellY, it.spanX, it.spanY) },
             Long.MIN_VALUE, p.page, p.cellX, p.cellY, p.spanX, p.spanY, columns, rows,
@@ -481,10 +491,12 @@ class HomeLayoutRepository @Inject constructor(
     }
 
     /** Places a built-in widget (e.g. [HomeItemEntity.BUILTIN_SMARTSPACE]) at the first rectangle,
-     *  pushing overlapping icons aside before spilling onto a fresh page (see [firstRectWithPush]). */
-    suspend fun addBuiltin(type: String, spanX: Int, spanY: Int, columns: Int, rows: Int) {
+     *  pushing overlapping icons aside before spilling onto a fresh page (see [firstRectWithPush]).
+     *  False — nothing stored, nothing moved — when every page the pager shows is full. */
+    suspend fun addBuiltin(type: String, spanX: Int, spanY: Int, columns: Int, rows: Int): Boolean =
         db.withTransaction {
             val placement = firstRectWithPush(dao.getContainer(HOME), columns, spanX, spanY, rows)
+            if (!isShownPage(placement.page)) return@withTransaction false
             applyPush(placement)
             val (page, x, y) = Triple(placement.page, placement.cellX, placement.cellY)
             dao.insert(
@@ -496,8 +508,8 @@ class HomeLayoutRepository @Inject constructor(
                     builtinType = type,
                 ),
             )
+            true
         }
-    }
 
     /** True when nothing has ever been placed on the home surface (fresh install). */
     suspend fun isHomeEmpty(): Boolean = dao.getContainer(HOME).isEmpty()
@@ -538,6 +550,7 @@ class HomeLayoutRepository @Inject constructor(
     ): Boolean = db.withTransaction {
         val row = dao.getById(rowId) ?: return@withTransaction false
         if (!row.isWidget && !row.isBuiltin) return@withTransaction false
+        if (!isShownPage(page)) return@withTransaction false
         val sx = spanX.coerceAtLeast(1)
         val sy = spanY.coerceAtLeast(1)
         val items = dao.getContainer(HOME)
@@ -637,14 +650,15 @@ class HomeLayoutRepository @Inject constructor(
          *  this constant only backs default parameters and old backups without home_rows. */
         const val ROWS = 6
 
-        /** Hard cap on home pages. The pager offers one trailing page past the cap, so the highest
-         *  legal item page INDEX is MAX_PAGES itself; restore accepts 0..MAX_PAGES inclusive. */
+        /** Hard cap on home pages: the pager shows pages 0 until MAX_PAGES. Every path that stores
+         *  or moves a row keeps to those ([isShownPage]); restore alone still accepts index MAX_PAGES,
+         *  which older versions could write. */
         const val MAX_PAGES = 50
 
-        /** Whether another app's pin request may put an item on [page]: one of the MAX_PAGES pages the
-         *  pager shows. Index MAX_PAGES is only its trailing page — a drop target while dragging, the
-         *  first page's copy with infinite scroll — where an item placed at rest would never be seen. */
-        fun isRequestPage(page: Int): Boolean = page in 0 until MAX_PAGES
+        /** Whether a row may be put on [page]: one of the MAX_PAGES pages the pager shows. Index
+         *  MAX_PAGES is only its trailing page — a drop target while dragging, the first page's copy
+         *  with infinite scroll — where an item placed at rest would never be seen. */
+        fun isShownPage(page: Int): Boolean = page in 0 until MAX_PAGES
 
         /** Temporary page offset for the two-hop page shifts (well past any real page). */
         private const val PAGE_SHIFT_HOP = 100_000

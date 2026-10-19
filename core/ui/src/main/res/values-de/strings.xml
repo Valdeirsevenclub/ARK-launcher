@@ -8,4 +8,5 @@
     <string name="shortcut_pin">Zum Startbildschirm hinzufügen</string>
     <string name="shortcut_unavailable">Verknüpfung nicht verfügbar</string>
     <string name="app_info_unavailable">App-Info konnte nicht geöffnet werden</string>
+    <string name="home_full">Der Startbildschirm ist voll</string>
 </resources>

@@ -246,6 +246,10 @@ fun HomeScreen(
     fun widgetMessage(message: Int) {
         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
     }
+    // What the ViewModel could not do for the user (e.g. the home screen is full), shown once each.
+    LaunchedEffect(viewModel) {
+        viewModel.notices.collect { widgetMessage(it.message) }
+    }
 
     // Pending widget across the bind/configure result steps. [restoreRowId] non-null → this is a
     // RESTORE (re-bind an existing placeholder row) rather than adding a brand-new widget.

@@ -8,8 +8,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.data.AppRepository
 import org.arkikeskus.launcher.data.HomeLayoutRepository
 import org.arkikeskus.launcher.data.NotificationBadgeRepository
+import org.arkikeskus.launcher.data.PlaceResult
 import org.arkikeskus.launcher.data.ShortcutPinLock
 import org.arkikeskus.launcher.data.SettingsRepository
 import org.arkikeskus.launcher.data.local.HomeItemEntity
@@ -28,6 +31,7 @@ import org.arkikeskus.launcher.data.search.SearchAggregator
 import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.model.SearchResult
 import org.arkikeskus.launcher.model.SearchResults
+import org.arkikeskus.launcher.ui.HomeNotice
 import javax.inject.Inject
 
 /** A drawer folder resolved to its member [apps] (for rendering). */
@@ -72,6 +76,16 @@ class AppDrawerViewModel @Inject constructor(
     private val searchAggregator: SearchAggregator,
     private val appUsageRepository: org.arkikeskus.launcher.data.AppUsageRepository,
 ) : ViewModel() {
+
+    private val _notices = Channel<HomeNotice>(Channel.BUFFERED)
+
+    /** One-shot notices for the screen to show, each delivered once (see [HomeNotice]). */
+    val notices: Flow<HomeNotice> = _notices.receiveAsFlow()
+
+    /** Queues a notice for the screen; the buffer absorbs a burst while nothing collects yet. */
+    private fun notify(notice: HomeNotice) {
+        _notices.trySend(notice)
+    }
 
     private val query = MutableStateFlow("")
 
@@ -186,33 +200,36 @@ class AppDrawerViewModel @Inject constructor(
 
     fun addToHome(appItem: AppItem) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.addToHome(appItem, s.homeColumns, s.homeRows)
+        if (!homeLayoutRepository.addToHome(appItem, s.homeColumns, s.homeRows)) notify(HomeNotice.HomeFull)
     }
 
     /** Drag-and-drop from the drawer onto a specific home cell (free cell, or first free if taken). */
     fun addToHomeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows)
+        if (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows) == PlaceResult.HomeFull) {
+            notify(HomeNotice.HomeFull)
+        }
     }
 
     fun removeFromHome(appItem: AppItem) = viewModelScope.launch { homeLayoutRepository.removeFromHome(appItem) }
 
-    /** Stores a pinned shortcut on home (system-level pin done by the caller, which has a Context). */
-    fun addPinnedShortcut(packageName: String, shortcutId: String, userSerial: Long) = viewModelScope.launch {
-        ShortcutPinLock.withLock { storePinnedShortcut(packageName, shortcutId, userSerial) }
-    }
-
-    private suspend fun storePinnedShortcut(packageName: String, shortcutId: String, userSerial: Long) {
+    /** Stores a pinned shortcut on home; false when every page the pager shows is full. */
+    private suspend fun storePinnedShortcut(packageName: String, shortcutId: String, userSerial: Long): Boolean {
         val s = settingsRepository.settings.first()
-        homeLayoutRepository.addShortcut(packageName, shortcutId, userSerial, s.homeColumns, s.homeRows)
+        return homeLayoutRepository.addShortcut(packageName, shortcutId, userSerial, s.homeColumns, s.homeRows)
     }
 
     /** Pins [item] in the system (IO — the Binder round-trips must not run on the main thread) and
-     *  places it on the home grid only if the system pin succeeded (else it would be a dead cell). */
+     *  places it on the home grid only if the system pin succeeded (else it would be a dead cell).
+     *  When home has no room for it the system pin is released again — re-pinned to the ids home
+     *  shows — so the system never holds a shortcut home cannot show. */
     fun pinShortcut(item: org.arkikeskus.launcher.ui.AppShortcuts.Item) = viewModelScope.launch {
         ShortcutPinLock.withLock {
-            if (org.arkikeskus.launcher.ui.AppShortcuts.pin(context, item)) {
-                storePinnedShortcut(item.packageName, item.id, item.userSerial)
+            if (!org.arkikeskus.launcher.ui.AppShortcuts.pin(context, item)) return@withLock
+            if (!storePinnedShortcut(item.packageName, item.id, item.userSerial)) {
+                val remaining = homeLayoutRepository.homeShortcutIds(item.packageName, item.userSerial)
+                org.arkikeskus.launcher.ui.AppShortcuts.setPinned(context, item.packageName, item.userSerial, remaining)
+                notify(HomeNotice.HomeFull)
             }
         }
     }

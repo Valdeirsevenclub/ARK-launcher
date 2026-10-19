@@ -144,7 +144,7 @@ fun decidePinRequest(
     val spanY = spans.spanY.coerceIn(1, rws)
     val home = homeRows.filter { it.containerId == HOME }
     val (page, cellX, cellY) = HomeLayoutRepository.firstFreeRect(home, cols, spanX, spanY, rws)
-    if (!HomeLayoutRepository.isRequestPage(page)) return PinDecision.NoSpace
+    if (!HomeLayoutRepository.isShownPage(page)) return PinDecision.NoSpace
     return PinDecision.Confirm(page, cellX, cellY, spanX, spanY)
 }
 

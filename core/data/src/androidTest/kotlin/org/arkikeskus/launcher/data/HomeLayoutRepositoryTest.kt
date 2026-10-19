@@ -211,7 +211,7 @@ class HomeLayoutRepositoryTest {
     fun placeAt_newApp_freeCell_inserts() = runTest {
         val accepted = repo.placeAt(app("a"), page = 0, cellX = 2, cellY = 1, columns = 4, rows = 6)
 
-        assertThat(accepted).isTrue()
+        assertThat(accepted).isEqualTo(PlaceResult.Placed)
         assertThat(dao.getContainer(HomeItemEntity.HOME).single().cell()).isEqualTo(Triple(0, 2, 1))
     }
 
@@ -221,7 +221,7 @@ class HomeLayoutRepositoryTest {
 
         val accepted = repo.placeAt(app("b"), page = 0, cellX = 0, cellY = 0, columns = 4, rows = 6)
 
-        assertThat(accepted).isTrue()
+        assertThat(accepted).isEqualTo(PlaceResult.Placed)
         val byPkg = dao.getContainer(HomeItemEntity.HOME).associateBy { it.packageName }
         assertThat(byPkg.getValue("a").cell()).isEqualTo(Triple(0, 0, 0)) // untouched
         assertThat(byPkg.getValue("b").cell()).isEqualTo(Triple(0, 1, 0)) // first free cell
@@ -235,7 +235,7 @@ class HomeLayoutRepositoryTest {
 
         val accepted = repo.placeAt(app("a"), page = 0, cellX = 1, cellY = 0, columns = 4, rows = 6)
 
-        assertThat(accepted).isTrue()
+        assertThat(accepted).isEqualTo(PlaceResult.Placed)
         val byPkg = dao.getContainer(HomeItemEntity.HOME).associateBy { it.packageName }
         assertThat(byPkg.getValue("a").cell()).isEqualTo(Triple(0, 1, 0))
         assertThat(byPkg.getValue("b").cell()).isEqualTo(Triple(0, 0, 0))

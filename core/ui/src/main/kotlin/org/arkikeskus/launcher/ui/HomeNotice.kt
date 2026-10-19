@@ -1,0 +1,13 @@
+package org.arkikeskus.launcher.ui
+
+import androidx.annotation.StringRes
+
+/**
+ * A one-shot notice a screen shows (as a toast) when something the user asked for could not be
+ * done to the home screen. The ViewModels emit these; the text lives here so the home screen and
+ * the app drawer say the same thing.
+ */
+enum class HomeNotice(@StringRes val message: Int) {
+    /** Every page the pager shows is full: nothing was added to or moved onto the home screen. */
+    HomeFull(R.string.home_full),
+}
