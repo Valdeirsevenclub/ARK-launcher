@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
 import android.os.Looper
-import android.widget.RemoteViews
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelStore
 import com.google.common.truth.Truth.assertThat
@@ -109,7 +108,6 @@ class PinRequestViewModelTest {
             it.minWidth = minWidth
             it.minHeight = minHeight
         }
-        override val remotePreview: RemoteViews? = null
         override val isValid: Boolean get() = valid.also { judged.incrementAndGet() }
         override fun accept(): Boolean = false
         override fun accept(appWidgetId: Int): Boolean = true

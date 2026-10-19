@@ -13,8 +13,6 @@ import android.os.Bundle
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
-import android.widget.RemoteViews
-import androidx.core.os.BundleCompat
 
 /**
  * The request behind a `LauncherApps.ACTION_CONFIRM_PIN_SHORTCUT` or `ACTION_CONFIRM_PIN_APPWIDGET`
@@ -26,14 +24,18 @@ fun systemPinRequest(context: Context, intent: Intent): PinRequest? {
     val launcherApps = context.getSystemService(LauncherApps::class.java) ?: return null
     val request = runCatching { launcherApps.getPinItemRequest(intent) }.getOrNull() ?: return null
     return when (request.requestType) {
-        LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT -> shortcutRequest(context, request)
+        LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT -> shortcutRequest(context, launcherApps, request)
         LauncherApps.PinItemRequest.REQUEST_TYPE_APPWIDGET -> widgetRequest(context, request)
         else -> null
     }
 }
 
-private fun shortcutRequest(context: Context, request: LauncherApps.PinItemRequest): PinRequest? {
-    val info = runCatching { request.shortcutInfo }.getOrNull() ?: return null
+private fun shortcutRequest(context: Context, launcherApps: LauncherApps, request: LauncherApps.PinItemRequest): PinRequest? {
+    val requested = runCatching { request.shortcutInfo }.getOrNull() ?: return null
+    // The confirmation is an exported activity, so the request may be one another app made up: a
+    // shortcut the system has (published, or pinned already) shows as the system has it. One only the
+    // request carries (a browser's page) shows as requested, and is stored only if the system pins it.
+    val info = runCatching { systemShortcut(launcherApps, requested) }.getOrNull() ?: requested
     val userManager = context.getSystemService(UserManager::class.java) ?: return null
     val serial = runCatching { userManager.getSerialNumberForUser(info.userHandle) }.getOrNull()
         ?.takeIf { it >= 0 } ?: return null
@@ -57,6 +59,19 @@ private fun widgetRequest(context: Context, request: LauncherApps.PinItemRequest
         ?.takeIf { it.isNotBlank() } ?: provider.packageName
     val ownProfile = info.profile == null || info.profile == Process.myUserHandle()
     return SystemWidgetPinRequest(request, info, PinItem.Widget(provider.flattenToString(), label, ownProfile))
+}
+
+/** The system's own [requested] shortcut: one its app published or this launcher pinned, else null. */
+private fun systemShortcut(launcherApps: LauncherApps, requested: ShortcutInfo): ShortcutInfo? {
+    val query = LauncherApps.ShortcutQuery()
+        .setPackage(requested.`package`)
+        .setShortcutIds(listOf(requested.id))
+        .setQueryFlags(
+            LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED,
+        )
+    return launcherApps.getShortcuts(query, requested.userHandle)?.firstOrNull { it.id == requested.id }
 }
 
 /** The requesting app's name in [user]'s profile (a work app's badge-less label), or its package. */
@@ -110,15 +125,6 @@ private class SystemWidgetPinRequest(
 
     override fun accept(appWidgetId: Int): Boolean =
         request.accept(Bundle().apply { putInt(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) })
-
-    /** The requesting app's own preview. The system takes a widget's pin request only from the
-     *  provider's own package, so a preview made for another package is not shown (the provider's
-     *  own preview stands in). */
-    override val remotePreview: RemoteViews? by lazy {
-        runCatching {
-            request.extras?.let { BundleCompat.getParcelable(it, AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, RemoteViews::class.java) }
-        }.getOrNull()?.takeIf { it.`package` == info.provider.packageName }
-    }
 
     /** The widget has its own preview (the picker's); only the requesting app's name is read here. */
     override fun loadPreview(context: Context): PinPreview =

@@ -148,7 +148,7 @@ class PinRequestSheetTest {
 
     private val widgetConfirm = PinRequestUiState.Confirm(
         appLabel = "Clock", label = "Analog clock", icon = null, spanX = 4, spanY = 2,
-        widget = WidgetPinPreview(clockInfo, remote = null, widthDp = 280f, heightDp = 200f),
+        widget = WidgetPinPreview(clockInfo, widthDp = 280f, heightDp = 200f),
     )
 
     @Test fun aWidgetCardShowsThePreviewTheNameAndTheSizeWithBothButtons() {

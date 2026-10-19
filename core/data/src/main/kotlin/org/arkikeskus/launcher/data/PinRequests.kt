@@ -3,7 +3,6 @@ package org.arkikeskus.launcher.data
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.graphics.Bitmap
-import android.widget.RemoteViews
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -81,11 +80,9 @@ interface PinRequest {
 
 /** A request for an app widget ([item] is a [PinItem.Widget]), with what binding and the preview need. */
 interface WidgetPinRequest : PinRequest {
-    /** The provider as the system describes it: component, profile, sizes, preview resources. */
+    /** The provider as the system describes it: component, profile, sizes, preview resources. Its own
+     *  preview is what the confirmation shows, not one the request carries: that could be anyone's. */
     val info: AppWidgetProviderInfo
-
-    /** The requesting app's own preview (`AppWidgetManager.EXTRA_APPWIDGET_PREVIEW`), if it gave one. */
-    val remotePreview: RemoteViews?
 
     /** Tells the system the user accepted, and which host id the widget is now bound to
      *  (`EXTRA_APPWIDGET_ID`). False (or an exception) when the request is no longer valid. Blocking. */

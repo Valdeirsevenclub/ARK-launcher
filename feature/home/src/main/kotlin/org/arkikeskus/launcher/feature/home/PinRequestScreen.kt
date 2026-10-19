@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ContextWrapper
 import android.content.Intent
-import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -61,12 +60,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.arkikeskus.launcher.data.PinRequest
 
 /**
- * A requested widget's preview: the provider for [WidgetPreview], the requesting app's own
- * RemoteViews if it gave one, and the footprint's size in dp (what the widget will measure on home).
+ * A requested widget's preview: the provider for [WidgetPreview] (its own preview, as the widget
+ * picker shows it) and the footprint's size in dp (what the widget will measure on home).
  */
 data class WidgetPinPreview(
     val info: AppWidgetProviderInfo,
-    val remote: RemoteViews?,
     val widthDp: Float,
     val heightDp: Float,
 )
@@ -210,7 +208,7 @@ private fun ConfirmContent(state: PinRequestUiState.Confirm, onAdd: () -> Unit, 
                 ) {
                     WidgetPreview(
                         WidgetChoice.App(widget.info), Modifier.fillMaxSize().padding(12.dp),
-                        widget.widthDp, widget.heightDp, onSnapshot = {}, remote = widget.remote,
+                        widget.widthDp, widget.heightDp, onSnapshot = {},
                     )
                 }
             } else if (icon != null) {

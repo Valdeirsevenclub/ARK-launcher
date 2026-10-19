@@ -115,10 +115,7 @@ class PinRequestViewModel @Inject constructor(
                         spanX = decision.spanX,
                         spanY = decision.spanY,
                         widget = (request as? WidgetPinRequest)?.let {
-                            WidgetPinPreview(
-                                it.info, it.remotePreview,
-                                decision.spanX * cell.widthDp, decision.spanY * cell.heightDp,
-                            )
+                            WidgetPinPreview(it.info, decision.spanX * cell.widthDp, decision.spanY * cell.heightDp)
                         },
                         // A recreated process still waiting for the bind dialog's answer.
                         busy = awaitingBind != null,

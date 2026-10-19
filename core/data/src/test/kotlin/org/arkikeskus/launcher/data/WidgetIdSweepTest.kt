@@ -3,7 +3,6 @@ package org.arkikeskus.launcher.data
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
-import android.widget.RemoteViews
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.atomic.AtomicReference
@@ -60,7 +59,6 @@ class WidgetIdSweepTest {
     private inner class ClockRequest : WidgetPinRequest {
         override val item: PinItem = PinItem.Widget(clockProvider.flattenToString(), "Analog clock", ownProfile = true)
         override val info = AppWidgetProviderInfo().also { it.provider = clockProvider }
-        override val remotePreview: RemoteViews? = null
         override var isValid: Boolean = true
         override fun accept(): Boolean = false
         override fun accept(appWidgetId: Int): Boolean = true.also { isValid = false }

@@ -3,7 +3,6 @@ package org.arkikeskus.launcher.data
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Context
-import android.widget.RemoteViews
 import androidx.room.Room
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
@@ -74,7 +73,6 @@ class PinRequestStoreTest {
     private inner class FakeWidgetRequest(private val onAccept: (Int) -> Boolean) : WidgetPinRequest {
         override val item: PinItem = clock
         override val info = AppWidgetProviderInfo().also { it.provider = clockProvider }
-        override val remotePreview: RemoteViews? = null
         override var isValid: Boolean = true
         var acceptedWith: Int? = null
         override fun accept(): Boolean = false
