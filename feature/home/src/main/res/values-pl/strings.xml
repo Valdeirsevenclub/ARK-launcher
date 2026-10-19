@@ -84,7 +84,7 @@
     <string name="save">Zapisz</string>
     <string name="folder_default_name">Folder</string>
     <string name="folder_name_label">Nazwa folderu</string>
-    <string name="folder_long_press_hint">Przytrzymaj aplikację, aby wyjąć ją z folderu</string>
+    <string name="folder_remove_app">Usuń z folderu</string>
     <string name="home_options_widgets">Widżety</string>
     <string name="home_options_settings">Launcher</string>
     <string name="home_options_wallpaper">Tapeta</string>

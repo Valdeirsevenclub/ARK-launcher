@@ -84,7 +84,7 @@
     <string name="save">Сохранить</string>
     <string name="folder_default_name">Папка</string>
     <string name="folder_name_label">Название папки</string>
-    <string name="folder_long_press_hint">Нажмите и удерживайте приложение, чтобы убрать его из папки</string>
+    <string name="folder_remove_app">Убрать из папки</string>
     <string name="home_options_widgets">Виджеты</string>
     <string name="home_options_settings">Настройки лаунчера</string>
     <string name="home_options_wallpaper">Обои</string>

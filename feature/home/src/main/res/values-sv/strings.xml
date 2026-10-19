@@ -84,7 +84,7 @@
     <string name="save">Spara</string>
     <string name="folder_default_name">Mapp</string>
     <string name="folder_name_label">Mappnamn</string>
-    <string name="folder_long_press_hint">Tryck länge på en app för att ta ut den ur mappen</string>
+    <string name="folder_remove_app">Ta bort från mappen</string>
     <string name="home_options_widgets">Widgetar</string>
     <string name="home_options_settings">Startskärm</string>
     <string name="home_options_wallpaper">Bakgrund</string>

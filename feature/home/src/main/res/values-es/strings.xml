@@ -84,7 +84,7 @@
     <string name="save">Guardar</string>
     <string name="folder_default_name">Carpeta</string>
     <string name="folder_name_label">Nombre de la carpeta</string>
-    <string name="folder_long_press_hint">Mantén pulsada una aplicación para sacarla de la carpeta</string>
+    <string name="folder_remove_app">Quitar de la carpeta</string>
     <string name="home_options_widgets">Widgets</string>
     <string name="home_options_settings">Configuración</string>
     <string name="home_options_wallpaper">Fondo de pantalla</string>

@@ -84,7 +84,7 @@
     <string name="save">Salvar</string>
     <string name="folder_default_name">Pasta</string>
     <string name="folder_name_label">Nome da pasta</string>
-    <string name="folder_long_press_hint">Toque e segure um app para tirá-lo da pasta</string>
+    <string name="folder_remove_app">Remover da pasta</string>
     <string name="home_options_widgets">Widgets</string>
     <string name="home_options_settings">Configurações da tela inicial</string>
     <string name="home_options_wallpaper">Plano de fundo</string>

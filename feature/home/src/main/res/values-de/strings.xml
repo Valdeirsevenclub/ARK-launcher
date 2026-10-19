@@ -84,7 +84,7 @@
     <string name="save">Speichern</string>
     <string name="folder_default_name">Ordner</string>
     <string name="folder_name_label">Ordnername</string>
-    <string name="folder_long_press_hint">Halte eine App gedrückt, um sie aus dem Ordner zu nehmen</string>
+    <string name="folder_remove_app">Aus dem Ordner entfernen</string>
     <string name="home_options_widgets">Widgets</string>
     <string name="home_options_settings">Launcher</string>
     <string name="home_options_wallpaper">Hintergrund</string>
