@@ -53,6 +53,7 @@ class LauncherActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        keepHomeOnBack()
         setContent {
             LauncherTheme {
                 // Icon re-fetch epochs above EVERY icon surface (home, dock, drawer, folder sheets):
