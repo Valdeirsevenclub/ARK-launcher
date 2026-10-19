@@ -8,6 +8,17 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <!-- See-through window for the confirmation another app's "Add to home screen" opens: the
+         requesting app stays visible behind the sheet's scrim. Compose draws the sheet. -->
+    <style name="Theme.ArkikeskusLauncher.Translucent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
     <!-- Splash screen shown on cold start, then hands off to the launcher theme. -->
     <style name="Theme.ArkikeskusLauncher.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>

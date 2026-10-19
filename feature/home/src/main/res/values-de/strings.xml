@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Akkubetrieb</string>
     <string name="widget_resize_width">Breite ändern</string>
     <string name="widget_resize_height">Höhe ändern</string>
+    <string name="pin_request_subtitle">Wird an der ersten freien Stelle hinzugefügt.</string>
+    <string name="pin_request_add">Zum Startbildschirm hinzufügen</string>
+    <string name="pin_request_added">%1$s zum Startbildschirm hinzugefügt</string>
+    <string name="pin_request_failed">Konnte nicht zum Startbildschirm hinzugefügt werden</string>
+    <string name="pin_request_locked_title">Der Startbildschirm ist gesperrt</string>
+    <string name="pin_request_locked_text">Deaktiviere „Startbildschirm-Layout sperren“ in den Einstellungen von ARK-launcher, um Elemente hinzuzufügen.</string>
+    <string name="pin_request_full_title">Der Startbildschirm ist voll</string>
+    <string name="pin_request_full_text">Schaffe Platz auf dem Startbildschirm, um neue Elemente hinzuzufügen.</string>
+    <string name="pin_request_close">Schließen</string>
+    <string name="pin_request_work_profile">Widgets aus dem Arbeitsprofil können noch nicht hinzugefügt werden.</string>
+    <string name="pin_request_too_big">Dieses Widget ist zu groß für den Startbildschirm.</string>
 </resources>

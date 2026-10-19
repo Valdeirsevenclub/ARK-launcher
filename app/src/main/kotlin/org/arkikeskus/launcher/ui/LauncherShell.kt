@@ -154,6 +154,7 @@ fun LauncherShell(
             onDrawerSettle = { settleDrawer(it) },
             onOpenSettings = onOpenSettings,
             homeSignals = homeSignals,
+            drawerOpen = drawerOpen,
             dragController = dragController,
             modifier = Modifier.fillMaxSize(),
         )

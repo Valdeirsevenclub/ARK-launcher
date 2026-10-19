@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">От батареи</string>
     <string name="widget_resize_width">Изменить ширину</string>
     <string name="widget_resize_height">Изменить высоту</string>
+    <string name="pin_request_subtitle">Будет добавлен на первое свободное место.</string>
+    <string name="pin_request_add">Добавить на главный экран</string>
+    <string name="pin_request_added">%1$s добавлен на главный экран</string>
+    <string name="pin_request_failed">Не удалось добавить на главный экран</string>
+    <string name="pin_request_locked_title">Макет заблокирован</string>
+    <string name="pin_request_locked_text">Отключите «Заблокировать макет» в настройках ARK-launcher, чтобы добавлять элементы.</string>
+    <string name="pin_request_full_title">Главный экран заполнен</string>
+    <string name="pin_request_full_text">Освободите место на главном экране, чтобы добавить новые элементы.</string>
+    <string name="pin_request_close">Закрыть</string>
+    <string name="pin_request_work_profile">Виджеты рабочего профиля пока нельзя добавить.</string>
+    <string name="pin_request_too_big">Этот виджет слишком велик для главного экрана.</string>
 </resources>

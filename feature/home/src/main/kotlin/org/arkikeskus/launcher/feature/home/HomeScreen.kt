@@ -100,6 +100,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import org.arkikeskus.launcher.data.PendingWidgetIds
+import org.arkikeskus.launcher.data.sweepHostIds
 import org.arkikeskus.launcher.model.WidgetPlacement
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -126,6 +128,26 @@ import org.arkikeskus.launcher.ui.component.LocalThemedIcons
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/** The space above and below the workspace in the home column. */
+internal val WORKSPACE_VERTICAL_PADDING = 12.dp
+
+/** The space around the dock in the home column. */
+internal val DOCK_OUTER_PADDING = 14.dp
+
+/** The themed status bar's least height with the system bar hidden (the cutout's band, when deeper). */
+internal val STATUS_ZONE_MIN = 24.dp
+
+/**
+ * The workspace's place in the home column: the themed status bar above takes the system bar's inset
+ * when it is shown, otherwise the workspace does. No horizontal padding: the grid spans the full width
+ * so a "full width" widget (spanX = columns at cellX 0) reaches both screen edges with no side gap.
+ */
+internal fun Modifier.homeWorkspacePadding(showStatusBar: Boolean): Modifier =
+    then(if (showStatusBar) Modifier else Modifier.statusBarsPadding()).padding(vertical = WORKSPACE_VERTICAL_PADDING)
+
+/** The dock's place in the home column: above the navigation bar, with room all round. */
+internal fun Modifier.homeDockPadding(): Modifier = navigationBarsPadding().padding(DOCK_OUTER_PADDING)
+
 /**
  * Home screen: a paged [Workspace] of app shortcuts + the dock. All home gestures (icon drag, swipe
  * up/down, long-press settings, page swipe) live inside [Workspace] so they don't fight each other.
@@ -139,6 +161,8 @@ fun HomeScreen(
     homeSignals: Flow<Boolean> = emptyFlow(),
     onDrawerDrag: (Float) -> Unit = {},
     onDrawerSettle: (Float) -> Unit = {},
+    /** The app drawer is open or sliding: the workspace is not at rest (see [Workspace]'s newItems). */
+    drawerOpen: Boolean = false,
     dragController: HomeDragController = rememberHomeDragController(),
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -241,19 +265,21 @@ fun HomeScreen(
     val widgetSizeReporter = remember { WidgetSizeReporter() }
     // Frees AppWidgetHost ids that no home_items row holds. The host ids AND the in-flight bind are
     // snapshotted BEFORE the (suspending) DB query: an id allocated, or a bind finished, while the
-    // query runs is absent from the snapshot or excluded, so it can never be swept. Returns the
+    // query runs is absent from the snapshot or excluded, so it can never be swept. An id another
+    // app's widget request holds (PendingWidgetIds: its bind dialog may be open right now) is left
+    // alone too, and the whole sweep — with [then], the startup's reverse direction — runs under the
+    // request's guard, so a request can't allocate or store an id half-way through it. Returns the
     // snapshot, or null when the host can't be read.
-    suspend fun sweepUnusedHostIds(host: android.appwidget.AppWidgetHost): Set<Int>? {
-        val hostIds = runCatching { host.appWidgetIds }.getOrNull() ?: return null
-        val inFlight = pendingWidget?.appWidgetId
-        val dbIds = viewModel.boundWidgetIds()
-        hostIds.forEach { id ->
-            if (id !in dbIds && id != inFlight && id != pendingWidget?.appWidgetId) {
-                runCatching { host.deleteAppWidgetId(id) }
-            }
-        }
-        return hostIds.toSet()
-    }
+    suspend fun sweepUnusedHostIds(
+        host: android.appwidget.AppWidgetHost,
+        then: suspend (Set<Int>) -> Unit = {},
+    ): Set<Int>? = PendingWidgetIds.shared.sweepHostIds(
+        hostIds = { runCatching { host.appWidgetIds }.getOrNull() },
+        rowIds = { viewModel.boundWidgetIds() },
+        keep = { setOfNotNull(pendingWidget?.appWidgetId) },
+        delete = { id -> runCatching { host.deleteAppWidgetId(id) } },
+        then = then,
+    )
     val placedWidgetIds = remember(uiState.entries) {
         uiState.entries.filterIsInstance<PlacedWidget>().map { it.appWidgetId }.toSet()
     }
@@ -306,13 +332,14 @@ fun HomeScreen(
     // left over after a full backup restore replaced the layout — so the host doesn't leak widget ids.
     LaunchedEffect(widgetHost) {
         val host = widgetHost ?: return@LaunchedEffect
-        val hostIds = sweepUnusedHostIds(host) ?: return@LaunchedEffect
         // The reverse direction: DB rows bound to ids this host never allocated — what a Google Auto
         // Backup / device-transfer restore leaves behind (the Room DB carries the OLD device's ids).
         // Unbind them into tap-to-set-up placeholders instead of invisible dead zones on the grid.
-        val validIds = hostIds.toMutableSet()
-        pendingWidget?.appWidgetId?.let { validIds.add(it) }
-        viewModel.unbindStaleWidgets(validIds)
+        sweepUnusedHostIds(host) { hostIds ->
+            val validIds = hostIds.toMutableSet()
+            pendingWidget?.appWidgetId?.let { validIds.add(it) }
+            viewModel.unbindStaleWidgets(validIds)
+        }
     }
 
     fun finishWidget(bind: PendingWidgetBind) {
@@ -512,7 +539,7 @@ fun HomeScreen(
                 // devices. Lets the themed bar sit in the cutout band, beside a centred punch-hole.
                 val statusZone = with(density) {
                     WindowInsets.displayCutout.getTop(this).toDp()
-                }.coerceAtLeast(24.dp)
+                }.coerceAtLeast(STATUS_ZONE_MIN)
                 // Height of the still-visible system status bar; reserved as internal top padding so the
                 // themed bar's scrim can extend up behind it to the top edge (no gap on tall-status-bar
                 // phones like the Pixel 10 Pro) while the glyphs sit below the system bar.
@@ -625,16 +652,12 @@ fun HomeScreen(
                 widgetViews = widgetViews,
                 widgetScrollableById = widgetScrollableById,
                 widgetSizeReporter = widgetSizeReporter,
+                drawerOpen = drawerOpen,
+                chrome = workspaceChrome(settings, uiState.pageCount, LocalDensity.current.fontScale, uiState.dockApps.size),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    // Status-bar inset is consumed by the StatusBar above when it's shown; otherwise the
-                    // workspace takes it itself.
-                    .then(if (settings.showStatusBar) Modifier else Modifier.statusBarsPadding())
-                    // No horizontal padding: the grid spans the full width so a "full width" widget
-                    // (spanX = columns at cellX 0) reaches both screen edges with no side gap. Icons
-                    // shift outward by a negligible ~8dp.
-                    .padding(vertical = 12.dp),
+                    .homeWorkspacePadding(settings.showStatusBar),
             )
 
             // Show the dock whenever it's enabled — even with no favorites yet — so a fresh install
@@ -657,8 +680,7 @@ fun HomeScreen(
                     onAppMenu = { app, anchor -> menuTarget = AppMenuTarget(app, anchor, DragSource.Dock, anchor.y > windowHeightPx / 2) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                        .homeDockPadding(),
                 )
             }
         }

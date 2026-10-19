@@ -88,6 +88,23 @@
             android:label="@string/settings_label"
             android:theme="@style/Theme.ArkikeskusLauncher" />
 
+        <!-- Other apps' "Add to home screen" (ShortcutManager.requestPinShortcut) and "Add widget"
+             (AppWidgetManager.requestPinAppWidget): declaring these actions is what makes the system
+             say the launcher supports pin requests. Exported with no category, as the system starts
+             it by explicit component. Its own task, kept out of recents, so it neither pulls the
+             launcher over the requesting app nor lingers. -->
+        <activity
+            android:name=".PinRequestActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:autoRemoveFromRecents="true"
+            android:theme="@style/Theme.ArkikeskusLauncher.Translucent">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+                <action android:name="android.content.pm.action.CONFIRM_PIN_APPWIDGET" />
+            </intent-filter>
+        </activity>
+
         <!-- Notification dots: the system binds this once the user grants notification access. -->
         <service
             android:name=".notifications.NotificationDotListenerService"

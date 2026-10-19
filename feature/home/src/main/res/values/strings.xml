@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">On battery</string>
     <string name="widget_resize_width">Resize width</string>
     <string name="widget_resize_height">Resize height</string>
+    <string name="pin_request_subtitle">Will be added to the first free spot.</string>
+    <string name="pin_request_add">Add to home screen</string>
+    <string name="pin_request_added">%1$s added to home screen</string>
+    <string name="pin_request_failed">Couldn\'t add to home screen</string>
+    <string name="pin_request_locked_title">The desktop is locked</string>
+    <string name="pin_request_locked_text">Turn off Lock desktop in ARK-launcher\'s settings to add items.</string>
+    <string name="pin_request_full_title">The home screen is full</string>
+    <string name="pin_request_full_text">Free up a spot on the home screen to add new items.</string>
+    <string name="pin_request_close">Close</string>
+    <string name="pin_request_work_profile">Work profile widgets can\'t be added yet.</string>
+    <string name="pin_request_too_big">This widget is too big for the home screen.</string>
 </resources>

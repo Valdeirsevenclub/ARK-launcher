@@ -196,18 +196,23 @@ private fun WidgetCard(
     }
 }
 
+/**
+ * A widget's preview as the picker shows it. [remote] is a preview the requesting app itself gave
+ * (another app's pin request, `EXTRA_APPWIDGET_PREVIEW`); it comes before the provider's own.
+ */
 @Composable
 internal fun WidgetPreview(
     choice: WidgetChoice, modifier: Modifier, widthDp: Float, heightDp: Float,
     onSnapshot: (() -> Bitmap?) -> Unit,
+    remote: RemoteViews? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val provider = (choice as? WidgetChoice.App)?.provider
-    val preview by produceState(WidgetPreviewData(), provider) {
+    val preview by produceState(WidgetPreviewData(), provider, remote) {
         if (provider == null) return@produceState
         value = withContext(Dispatchers.IO) {
-            val generated = if (Build.VERSION.SDK_INT >= 35) runCatching {
+            val generated = remote ?: if (Build.VERSION.SDK_INT >= 35) runCatching {
                 AppWidgetManager.getInstance(context).getWidgetPreview(
                     provider.provider, provider.profile, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN,
                 )

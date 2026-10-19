@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Sur batterie</string>
     <string name="widget_resize_width">Modifier la largeur</string>
     <string name="widget_resize_height">Modifier la hauteur</string>
+    <string name="pin_request_subtitle">Sera ajouté au premier emplacement libre.</string>
+    <string name="pin_request_add">Ajouter à l\'écran d\'accueil</string>
+    <string name="pin_request_added">%1$s ajouté à l\'écran d\'accueil</string>
+    <string name="pin_request_failed">Impossible d\'ajouter à l\'écran d\'accueil</string>
+    <string name="pin_request_locked_title">La disposition est verrouillée</string>
+    <string name="pin_request_locked_text">Désactivez « Verrouiller la disposition » dans les paramètres d\'ARK-launcher pour ajouter des éléments.</string>
+    <string name="pin_request_full_title">L\'écran d\'accueil est plein</string>
+    <string name="pin_request_full_text">Libérez de la place sur l\'écran d\'accueil pour ajouter de nouveaux éléments.</string>
+    <string name="pin_request_close">Fermer</string>
+    <string name="pin_request_work_profile">Les widgets du profil professionnel ne peuvent pas encore être ajoutés.</string>
+    <string name="pin_request_too_big">Ce widget est trop grand pour l\'écran d\'accueil.</string>
 </resources>

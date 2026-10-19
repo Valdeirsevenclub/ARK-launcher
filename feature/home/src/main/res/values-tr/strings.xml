@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Pille çalışıyor</string>
     <string name="widget_resize_width">Genişliği değiştir</string>
     <string name="widget_resize_height">Yüksekliği değiştir</string>
+    <string name="pin_request_subtitle">İlk boş yere eklenecek.</string>
+    <string name="pin_request_add">Ana ekrana ekle</string>
+    <string name="pin_request_added">%1$s ana ekrana eklendi</string>
+    <string name="pin_request_failed">Ana ekrana eklenemedi</string>
+    <string name="pin_request_locked_title">Ana ekran kilitli</string>
+    <string name="pin_request_locked_text">Öğe eklemek için ARK-launcher ayarlarında \"Ana ekran düzenini kilitle\" seçeneğini kapatın.</string>
+    <string name="pin_request_full_title">Ana ekran dolu</string>
+    <string name="pin_request_full_text">Yeni öğeler eklemek için ana ekranda yer açın.</string>
+    <string name="pin_request_close">Kapat</string>
+    <string name="pin_request_work_profile">İş profili widget\'ları henüz eklenemiyor.</string>
+    <string name="pin_request_too_big">Bu widget ana ekran için çok büyük.</string>
 </resources>

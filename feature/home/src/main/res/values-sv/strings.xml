@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Batteridrift</string>
     <string name="widget_resize_width">Ändra bredd</string>
     <string name="widget_resize_height">Ändra höjd</string>
+    <string name="pin_request_subtitle">Läggs till på första lediga plats.</string>
+    <string name="pin_request_add">Lägg till på startskärmen</string>
+    <string name="pin_request_added">%1$s har lagts till på startskärmen</string>
+    <string name="pin_request_failed">Det gick inte att lägga till på startskärmen</string>
+    <string name="pin_request_locked_title">Startskärmen är låst</string>
+    <string name="pin_request_locked_text">Stäng av ”Lås startskärmens layout” i ARK-launchers inställningar för att lägga till objekt.</string>
+    <string name="pin_request_full_title">Startskärmen är full</string>
+    <string name="pin_request_full_text">Frigör plats på startskärmen för att lägga till nya objekt.</string>
+    <string name="pin_request_close">Stäng</string>
+    <string name="pin_request_work_profile">Widgetar från jobbprofilen kan inte läggas till ännu.</string>
+    <string name="pin_request_too_big">Den här widgeten är för stor för startskärmen.</string>
 </resources>

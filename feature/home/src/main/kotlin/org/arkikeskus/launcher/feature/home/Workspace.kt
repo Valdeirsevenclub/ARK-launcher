@@ -1,6 +1,9 @@
 package org.arkikeskus.launcher.feature.home
 
 import android.appwidget.AppWidgetManager
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +39,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -60,6 +64,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -83,8 +88,11 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
 import org.arkikeskus.launcher.model.WidgetPlacement
 import kotlinx.coroutines.flow.Flow
@@ -186,6 +194,14 @@ internal fun Workspace(
     widgetViews: Map<Int, android.appwidget.AppWidgetHostView> = emptyMap(),
     widgetScrollableById: Map<Int, Boolean> = emptyMap(),
     widgetSizeReporter: WidgetSizeReporter = remember { WidgetSizeReporter() },
+    /** The app drawer is open (or sliding): the home screen is not at rest for [newItems]. */
+    drawerOpen: Boolean = false,
+    /** Rows other apps' pin requests added while home was away, to reveal when it comes back at rest. */
+    newItems: NewHomeItems = NewHomeItems.shared,
+    /** Where the grid's cell size is published for the rest of the process (a widget request's confirmation). */
+    cellSize: HomeCellSize = HomeCellSize.shared,
+    /** The chrome around the grid the cell is measured with ([WorkspaceChrome]); null when unknown. */
+    chrome: WorkspaceChrome? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -415,9 +431,12 @@ internal fun Workspace(
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
+    val configuration = LocalConfiguration.current
     SideEffect {
         widgetDragController.cellWidthDp = cellW / density.density
         widgetDragController.cellHeightDp = cellH / density.density
+        // The same size for the rest of the process (a widget request's confirmation), once real.
+        if (gridSize.width > 0 && gridSize.height > 0) cellSize.publish(cellW / density.density, cellH / density.density, columns, rows, configuration, chrome)
         widgetDragController.target = {
             val drag = widgetDragController.active
             if (drag == null || locked || pagerState.isScrollInProgress) null else {
@@ -613,8 +632,11 @@ internal fun Workspace(
     // when HOME was pressed while the launcher was already foreground (alreadyOnHome). Coming home
     // from an app keeps the page the app was launched from — the Pixel Launcher convention.
     val homeIndex = homePage ?: 0
+    // Counts HOME presses, so a reveal that waited for its rows (below) can tell the user moved on.
+    var homePresses by remember { mutableIntStateOf(0) }
     LaunchedEffect(homeSignals, pageCount, homeIndex) {
         homeSignals.collect { alreadyOnHome ->
+            homePresses++
             widgetDragController.cancel()
             // A held icon, folder or shortcut lift ends too; its gesture drops nothing on release.
             dragController.cancel()
@@ -683,6 +705,81 @@ internal fun Workspace(
         }.collect { copyOnScreen = it }
     }
     PageZeroCopySwap(pagerState, pageCount, tailCopy, onBeforeSwap = { copyOnScreen = false })
+
+    // "Show the new item": rows other apps' pin requests added while home was away ([newItems]).
+    // Taken when home comes to the foreground at rest — otherwise they wait for the next time, so
+    // the page never turns under the user's own drag or behind the open drawer. The rows reach
+    // [entries] a beat later (the layout flow restarts after a long stay in the background), so the
+    // reveal waits for them, but only briefly: a row removed meanwhile never comes.
+    var revealing by remember { mutableStateOf<List<Long>?>(null) }
+    // Pop-in progress per revealed row (0 = still hidden, 1 = settled), read in the item's layer.
+    // Set as soon as the ids are taken, so a row can't show at full size before its pop.
+    val revealScale = remember { mutableStateMapOf<Long, Float>() }
+    val currentDrawerOpen by rememberUpdatedState(drawerOpen)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (revealing == null && !dragInProgress() && !drawerOpen) {
+            val ids = newItems.take()
+            if (ids.isNotEmpty()) {
+                ids.forEach { revealScale[it] = 0f }
+                revealing = ids
+            }
+        }
+    }
+    LaunchedEffect(revealing) {
+        val ids = revealing ?: return@LaunchedEffect
+        val homePressesAtStart = homePresses
+        val pageAtStart = pagerState.currentPage
+        try {
+            // The wait can take seconds. Whatever the user does meanwhile — HOME, the drawer, a drag, a
+            // page of their own — wins, even when it is over again by the end of the wait: the rows
+            // still pop in, but the page stays where the user is.
+            var userActed = false
+            coroutineScope {
+                val watch = launch {
+                    snapshotFlow { currentDrawerOpen || dragInProgress() || pagerState.isScrollInProgress }.first { it }
+                    userActed = true
+                }
+                withTimeoutOrNull(NEW_ITEM_WAIT_MS) {
+                    snapshotFlow { ids.all { id -> latestEntries.any { it.rowIdOrNull == id } } }.first { it }
+                }
+                watch.cancel()
+            }
+            val present = ids.filter { id -> latestEntries.any { it.rowIdOrNull == id } }
+            if (present.isEmpty()) return@LaunchedEffect
+            val userMovedOn = userActed || homePresses != homePressesAtStart || currentDrawerOpen || dragInProgress() ||
+                pagerState.isScrollInProgress || pagerState.currentPage != pageAtStart
+            // The last one's page. With the copy of page 0 under the pager, page 0 is already showing.
+            val target = latestEntries.first { it.rowIdOrNull == present.last() }.page
+            val showing = if (tailCopy && pagerState.currentPage >= pageCount) 0 else pagerState.currentPage
+            if (!userMovedOn && target != showing && target in 0 until pagerState.pageCount) {
+                try {
+                    pagerState.animateScrollToPage(target)
+                } catch (e: CancellationException) {
+                    // The pager cancels the turn when the user starts dragging or another scroll
+                    // (HOME on the home screen) takes over. This coroutine is still alive then, and
+                    // the pop below must still run — the rows were hidden for it.
+                    coroutineContext.ensureActive()
+                }
+            }
+            delay(NEW_ITEM_POP_PAUSE_MS)
+            // Launcher3's bind animation (Apache-2.0): each new icon pops in from nothing with an
+            // overshoot, one after another. Waited for, so the restart below can't cut them short.
+            coroutineScope {
+                present.forEachIndexed { i, id ->
+                    launch {
+                        animate(0f, 1f, animationSpec = tween(NEW_ITEM_POP_MS, i * NEW_ITEM_STAGGER_MS, NewItemOvershoot)) { v, _ ->
+                            revealScale[id] = v
+                        }
+                    }
+                }
+            }
+        } finally {
+            // However the reveal ends — done, timed out, or cut short by the effect leaving — no row
+            // may stay hidden: a scale of 0 keeps the item invisible while it holds its cell and takes taps.
+            ids.forEach { revealScale.remove(it) }
+            revealing = null
+        }
+    }
     // A swipe or an accessibility page action that ran into an end (on past the last page, or back on
     // page 0 when it neither wraps nor belongs to the left-edge app), or the retreat's bounce off the
     // empty page past the last one. Each shows PageEndHint; the swipes and page actions say so the same
@@ -1186,7 +1283,17 @@ internal fun Workspace(
                                         }
                                         .size(with(density) { cellW.toDp() }, with(density) { cellH.toDp() })
                                         .graphicsLayer {
-                                            alpha = if ((draggingLocal as? PlacedShortcut)?.rowId == entry.rowId && localMoving) 0f else 1f
+                                            // A row just added by another app pops in (see revealScale).
+                                            val reveal = revealScale[entry.rowId]
+                                            if (reveal != null) {
+                                                scaleX = reveal
+                                                scaleY = reveal
+                                            }
+                                            alpha = when {
+                                                (draggingLocal as? PlacedShortcut)?.rowId == entry.rowId && localMoving -> 0f
+                                                reveal != null -> reveal.coerceIn(0f, 1f)
+                                                else -> 1f
+                                            }
                                         }
                                         // Removable: drag up to the "Poista" zone to take it off home
                                         // (no in-place menu — the remove zone replaces it).
@@ -1260,8 +1367,18 @@ internal fun Workspace(
                                             }
                                         }
                                         .graphicsLayer {
-                                            alpha = if (widgetDragController.moving &&
-                                                widgetDragController.active?.item?.rowId == widget.rowId) 0f else 1f
+                                            // A row another app's pin request just added pops in (see revealScale).
+                                            val reveal = revealScale[widget.rowId]
+                                            if (reveal != null) {
+                                                scaleX = reveal
+                                                scaleY = reveal
+                                            }
+                                            alpha = when {
+                                                widgetDragController.moving &&
+                                                    widgetDragController.active?.item?.rowId == widget.rowId -> 0f
+                                                reveal != null -> reveal.coerceIn(0f, 1f)
+                                                else -> 1f
+                                            }
                                         }
                                         .widgetDragGesture(widget.rowId, !pageLocked, widgetDragController) { root, fraction, owner ->
                                             liftWidget(EditingItem(widget.rowId, widget.appWidgetId, widget.page,
@@ -1518,7 +1635,7 @@ internal fun Workspace(
                     homeMarker = homePageMarker,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = PAGE_DOTS_PADDING),
                 )
             }
         }
@@ -1910,12 +2027,12 @@ internal fun PageDots(
                     painter = painterResource(LauncherIcons.Home),
                     contentDescription = null,
                     tint = color,
-                    modifier = Modifier.size(13.dp).pageDotHalo().testTag(PAGE_DOT_HOUSE_TAG),
+                    modifier = Modifier.size(PAGE_DOT_HOUSE_SIZE).pageDotHalo().testTag(PAGE_DOT_HOUSE_TAG),
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(if (isHome) 9.dp else 7.dp)
+                        .size(if (isHome) PAGE_DOT_HOME_SIZE else PAGE_DOT_SIZE)
                         .pageDotHalo()
                         .then(if (isHome) Modifier.border(1.5.dp, color, CircleShape).padding(2.dp) else Modifier)
                         .background(color = color, shape = CircleShape)
@@ -1945,6 +2062,15 @@ private fun Modifier.pageDotHalo(): Modifier = drawBehind {
 private val PAGE_DOT_HALO_EXTRA = 5.dp
 private const val PAGE_DOT_HALO_ALPHA = 0.5f
 
+private val PAGE_DOT_SIZE = 7.dp
+private val PAGE_DOT_HOME_SIZE = 9.dp
+private val PAGE_DOT_HOUSE_SIZE = 13.dp
+private val PAGE_DOTS_PADDING = 8.dp
+
+/** The height of the page dots' row below the grid: the home page's marker is its tallest. */
+internal fun pageDotsRowHeight(homeMarker: String): Dp =
+    PAGE_DOTS_PADDING * 2 + if (homeMarker == LauncherSettings.MARKER_HOUSE) PAGE_DOT_HOUSE_SIZE else PAGE_DOT_HOME_SIZE
+
 /** Widget bounds applied optimistically (by row id) until the DB flow catches up — spans included,
  *  so an edit-frame resize shows on the hosted content immediately, not only after the round-trip. */
 private data class WidgetBounds(val page: Int, val cellX: Int, val cellY: Int, val spanX: Int, val spanY: Int)
@@ -1954,6 +2080,35 @@ private const val REMOVED_HIDE_TIMEOUT_MS = 1_500L
 
 /** How long a dragged item must rest at a screen edge before the page flips. */
 private const val EDGE_FLIP_DWELL_MS = 550L
+
+/** How long the reveal of a new item waits for its row to reach the grid before giving it up. */
+private const val NEW_ITEM_WAIT_MS = 3_000L
+
+/** A beat between the page turn and the first pop, so the pop is seen on a resting page. */
+private const val NEW_ITEM_POP_PAUSE_MS = 150L
+
+/** The pop-in of a new item, as Launcher3's `ItemInstallQueue` bounce (Apache-2.0): 450 ms, each
+ *  item 85 ms after the previous, with an overshoot of tension 1.3. */
+private const val NEW_ITEM_POP_MS = 450
+private const val NEW_ITEM_STAGGER_MS = 85
+private const val NEW_ITEM_OVERSHOOT_TENSION = 1.3f
+
+/** The platform's `OvershootInterpolator` as a Compose easing: runs past 1 and settles back. */
+private val NewItemOvershoot = Easing { t ->
+    val x = t - 1f
+    x * x * ((NEW_ITEM_OVERSHOOT_TENSION + 1f) * x + NEW_ITEM_OVERSHOOT_TENSION) + 1f
+}
+
+/** The home_items row behind an entry, for everything that is addressed by row (apps aren't). */
+private val HomeEntry.rowIdOrNull: Long?
+    get() = when (this) {
+        is PlacedApp -> null
+        is PlacedFolder -> id
+        is PlacedShortcut -> rowId
+        is PlacedWidget -> rowId
+        is PendingWidget -> rowId
+        is PlacedBuiltin -> rowId
+    }
 
 /** A stable composition key per home item. Apps have no row id here; their app key is unique on home. */
 private fun homeEntryKey(entry: HomeEntry): String = when (entry) {

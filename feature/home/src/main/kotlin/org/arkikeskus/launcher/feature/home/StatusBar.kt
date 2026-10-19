@@ -107,8 +107,39 @@ class StatusViewModel @Inject constructor(
 private val STATUS_EDGE_PAD = 28.dp // clock / battery inset from the screen edges
 private val STATUS_GAP = 8.dp // space between indicators
 private val STATUS_NOTIF_GAP = 5.dp // space between notification icons on the left
-private val STATUS_MAIN_LINE = 18.dp // common centre line for every primary glyph (matches the stock bar)
+internal val STATUS_MAIN_LINE = 18.dp // common centre line for every primary glyph (matches the stock bar)
+private val STATUS_SUB_LINE = 9.dp // a two-part readout's second line (5G, the Wi-Fi band) under the main line
 private val STATUS_FADE = 8.dp // soft bottom edge below the glyphs where the scrim fades into the wallpaper
+
+/** The most the themed bar takes below what it leaves for the system bar: the main line, a two-part
+ *  readout's second line and the fade (without a two-part readout it is a line shorter). */
+internal val STATUS_BAR_TALLEST = STATUS_MAIN_LINE + STATUS_SUB_LINE + STATUS_FADE
+
+/**
+ * The top camera cutout in window px, as the bar lines its glyphs up with it: the tight cutout path's
+ * bounds when they fall inside the top band (API 31+; the band's rect can be looser than the visible
+ * camera, its centre then off the hole), else the band's rect. Null without a top cutout.
+ */
+internal fun topCutoutRect(cutout: android.view.DisplayCutout?): android.graphics.Rect? {
+    val top = cutout?.boundingRectTop?.takeIf { it.width() > 0 }
+    val pathRect = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        cutout?.cutoutPath?.let { p ->
+            val rf = android.graphics.RectF()
+            p.computeBounds(rf, true)
+            if (rf.width() > 0f && rf.height() > 0f) {
+                android.graphics.Rect(rf.left.toInt(), rf.top.toInt(), rf.right.toInt(), rf.bottom.toInt())
+            } else {
+                null
+            }
+        }
+    } else {
+        null
+    }
+    return when {
+        pathRect != null && top != null && pathRect.centerY() in top.top..top.bottom -> pathRect
+        else -> top
+    }
+}
 
 // Tight text: drop the default font padding so the glyphs centre on their true visual bounds, level
 // with the geometrically-centred icons on the shared main line (otherwise the clock digits sit low).
@@ -163,28 +194,7 @@ fun StatusBar(
             cutoutInsets.getRight(this, androidx.compose.ui.unit.LayoutDirection.Ltr)
     }
     LaunchedEffect(view, cutoutKey) {
-        val dc = view.rootWindowInsets?.displayCutout
-        val top = dc?.boundingRectTop?.takeIf { it.width() > 0 }
-        // boundingRectTop can be looser than the visible camera (its centre then sits off the hole), so
-        // refine to the tight cutout PATH bounds when they fall inside the top band — that gives the real
-        // punch-hole centre on any device. API 31+; falls back to the rect otherwise.
-        val pathRect = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            dc?.cutoutPath?.let { p ->
-                val rf = android.graphics.RectF()
-                p.computeBounds(rf, true)
-                if (rf.width() > 0f && rf.height() > 0f) {
-                    android.graphics.Rect(rf.left.toInt(), rf.top.toInt(), rf.right.toInt(), rf.bottom.toInt())
-                } else {
-                    null
-                }
-            }
-        } else {
-            null
-        }
-        cutout = when {
-            pathRect != null && top != null && pathRect.centerY() in top.top..top.bottom -> pathRect
-            else -> top
-        }
+        cutout = topCutoutRect(view.rootWindowInsets?.displayCutout)
     }
     // The bar's own top in window space, so cutout alignment is exact regardless of where the bar is
     // placed (the cutout rect is in window coordinates too).
@@ -377,7 +387,8 @@ private fun StatusItem(sub: String?, subColor: Color, primary: @Composable () ->
                 color = subColor,
                 fontSize = 8.sp,
                 fontWeight = FontWeight.SemiBold,
-                lineHeight = 9.sp,
+                // In sp at the bar's fixed font scale of 1: the line is STATUS_SUB_LINE tall.
+                lineHeight = STATUS_SUB_LINE.value.sp,
                 style = StatusTextStyle,
             )
         }

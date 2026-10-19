@@ -114,6 +114,77 @@ class HomeLayoutRepository @Inject constructor(
         }
     }
 
+    /**
+     * Stores the shortcut another app asked to pin ([PinRequestStore]). Unlike [addShortcut], one
+     * already on home gets a second row: the platform requires a request for a pinned shortcut to
+     * produce a new icon. Goes to ([page], [cellX], [cellY]) — the cell the confirmation decided on —
+     * if it is still free, else to the first free cell: home may have changed while the confirmation
+     * was open. Both are judged inside the transaction. Null (nothing stored) when even that cell
+     * is not on a page the pager shows ([isRequestPage]).
+     */
+    suspend fun insertRequestedShortcut(
+        packageName: String, shortcutId: String, userSerial: Long,
+        page: Int, cellX: Int, cellY: Int, columns: Int, rows: Int,
+    ): Long? = db.withTransaction {
+        val items = dao.getContainer(HOME)
+        val (p, x, y) = if (rectFitsForRow(items, NO_ROW, page, cellX, cellY, 1, 1, columns, rows)) {
+            Triple(page, cellX, cellY)
+        } else {
+            firstFreeCell(items, columns, rows)
+        }
+        if (!isRequestPage(p)) return@withTransaction null
+        dao.insert(
+            HomeItemEntity(
+                containerId = HOME,
+                packageName = packageName,
+                userSerial = userSerial,
+                shortcutId = shortcutId,
+                page = p,
+                cellX = x,
+                cellY = y,
+            ),
+        )
+    }
+
+    /**
+     * Stores the app widget another app asked to pin ([PinRequestStore.acceptBoundWidget]), already
+     * bound to [appWidgetId]. The row carries the same fields as one [addWidgetAt] stores. Goes to
+     * ([page], [cellX], [cellY]) — the rectangle the confirmation decided on — if it is still free,
+     * else to the first free rectangle of the same size; nothing else is moved for it. Both are
+     * judged inside the transaction. Null (nothing stored) when even that is not on a page the
+     * pager shows ([isRequestPage]).
+     */
+    suspend fun insertRequestedWidget(
+        appWidgetId: Int, provider: String,
+        page: Int, cellX: Int, cellY: Int, spanX: Int, spanY: Int, columns: Int, rows: Int,
+    ): Long? = db.withTransaction {
+        val items = dao.getContainer(HOME)
+        val sx = spanX.coerceIn(1, columns.coerceAtLeast(1))
+        val sy = spanY.coerceIn(1, rows.coerceAtLeast(1))
+        val (p, x, y) = if (rectFitsForRow(items, NO_ROW, page, cellX, cellY, sx, sy, columns, rows)) {
+            Triple(page, cellX, cellY)
+        } else {
+            firstFreeRect(items, columns, sx, sy, rows)
+        }
+        if (!isRequestPage(p)) return@withTransaction null
+        dao.insert(
+            HomeItemEntity(
+                containerId = HOME,
+                page = p, cellX = x, cellY = y,
+                spanX = sx, spanY = sy,
+                appWidgetId = appWidgetId,
+                widgetProvider = provider,
+            ),
+        )
+    }
+
+    /** The shortcut ids of (package, profile) on home right now — the set the system should hold. */
+    suspend fun homeShortcutIds(packageName: String, userSerial: Long): List<String> =
+        dao.getContainer(HOME)
+            .filter { it.isShortcut && it.packageName == packageName && it.userSerial == userSerial }
+            .mapNotNull { it.shortcutId }
+            .distinct()
+
     /** Removes a pinned-shortcut row; returns the ids still pinned for its (package, user) so the
      *  caller can re-pin the remaining set in the system (pinShortcuts replaces the whole set). */
     suspend fun removeShortcut(rowId: Long): RemainingPins? = db.withTransaction {
@@ -569,6 +640,11 @@ class HomeLayoutRepository @Inject constructor(
         /** Hard cap on home pages. The pager offers one trailing page past the cap, so the highest
          *  legal item page INDEX is MAX_PAGES itself; restore accepts 0..MAX_PAGES inclusive. */
         const val MAX_PAGES = 50
+
+        /** Whether another app's pin request may put an item on [page]: one of the MAX_PAGES pages the
+         *  pager shows. Index MAX_PAGES is only its trailing page — a drop target while dragging, the
+         *  first page's copy with infinite scroll — where an item placed at rest would never be seen. */
+        fun isRequestPage(page: Int): Boolean = page in 0 until MAX_PAGES
 
         /** Temporary page offset for the two-hop page shifts (well past any real page). */
         private const val PAGE_SHIFT_HOP = 100_000

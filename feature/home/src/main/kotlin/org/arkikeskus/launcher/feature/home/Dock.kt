@@ -94,9 +94,9 @@ fun Dock(
     }
     // Icon size derived from the slot so 6–7 dock icons fit a narrow screen (fixed 52dp overlapped).
     val dockIconSize = if (rowWidthPx > 0 && apps.isNotEmpty()) {
-        iconSizeForCell(with(density) { (rowWidthPx.toFloat() / apps.size).toDp() }, 52.dp)
+        iconSizeForCell(with(density) { (rowWidthPx.toFloat() / apps.size).toDp() }, DOCK_ICON_SIZE)
     } else {
-        52.dp
+        DOCK_ICON_SIZE
     }
 
     val shape = RoundedCornerShape(30.dp)
@@ -121,8 +121,8 @@ fun Dock(
         Row(
             // Keep a full-height bar even when empty (no favorites yet) so apps can be dragged in.
             modifier = Modifier
-                .heightIn(min = 72.dp)
-                .padding(horizontal = 8.dp, vertical = 10.dp)
+                .heightIn(min = DOCK_ROW_MIN_HEIGHT)
+                .padding(horizontal = 8.dp, vertical = DOCK_ROW_VERTICAL_PADDING)
                 .onSizeChanged { rowWidthPx = it.width },
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -275,3 +275,10 @@ fun Dock(
         }
     }
 }
+
+/** The dock's icon size, shrunk only when its apps don't fit the row at it. */
+internal val DOCK_ICON_SIZE = 52.dp
+
+/** The dock row's least height (it stays a full bar while empty) and its space above and below the icons. */
+internal val DOCK_ROW_MIN_HEIGHT = 72.dp
+internal val DOCK_ROW_VERTICAL_PADDING = 10.dp

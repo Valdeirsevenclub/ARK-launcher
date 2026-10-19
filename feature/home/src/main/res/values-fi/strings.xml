@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Akku käytössä</string>
     <string name="widget_resize_width">Muuta leveyttä</string>
     <string name="widget_resize_height">Muuta korkeutta</string>
+    <string name="pin_request_subtitle">Lisätään ensimmäiseen vapaaseen kohtaan.</string>
+    <string name="pin_request_add">Lisää aloitusnäytölle</string>
+    <string name="pin_request_added">%1$s lisätty aloitusnäytölle</string>
+    <string name="pin_request_failed">Aloitusnäytölle lisääminen ei onnistunut</string>
+    <string name="pin_request_locked_title">Työpöytä on lukittu</string>
+    <string name="pin_request_locked_text">Ota ”Lukitse työpöytä” pois käytöstä ARK-launcherin asetuksissa, jotta voit lisätä kohteita.</string>
+    <string name="pin_request_full_title">Aloitusnäyttö on täynnä</string>
+    <string name="pin_request_full_text">Vapauta tilaa aloitusnäytöltä, jotta voit lisätä uusia kohteita.</string>
+    <string name="pin_request_close">Sulje</string>
+    <string name="pin_request_work_profile">Työprofiilin widgettejä ei voi vielä lisätä.</string>
+    <string name="pin_request_too_big">Widget on liian suuri aloitusnäytölle.</string>
 </resources>

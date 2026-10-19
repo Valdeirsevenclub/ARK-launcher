@@ -1,6 +1,11 @@
 package org.arkikeskus.launcher.feature.home
 
 import com.google.common.truth.Truth.assertThat
+import org.arkikeskus.launcher.data.HomeLayoutRepository
+import org.arkikeskus.launcher.data.PinDecision
+import org.arkikeskus.launcher.data.PinItem
+import org.arkikeskus.launcher.data.decidePinRequest
+import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.junit.Test
 
 class WorkspacePagingTest {
@@ -80,5 +85,20 @@ class PermanentPageCountTest {
         assertThat(permanentPageCount(setOf(0, 3), 0)).isEqualTo(4)
         assertThat(permanentPageCount(setOf(0), 6)).isEqualTo(6)
         assertThat(permanentPageCount(setOf(0, 99), 0)).isEqualTo(50)
+    }
+
+    /** Another app's pin request never lands where the pager shows no page of its own. */
+    @Test
+    fun thePagesAPinRequestFillsAreThePagesThePagerShows() {
+        val item = PinItem.Shortcut("com.chat", "mia", userSerial = 0L, label = "Mia")
+        val rows = ArrayList<HomeItemEntity>()
+        while (true) {
+            val decision = decidePinRequest(item, true, false, rows, columns = 1, rows = 1) as? PinDecision.Confirm ?: break
+            rows += HomeItemEntity(
+                id = rows.size + 1L, packageName = "p", className = "C", page = decision.page, cellX = 0, cellY = 0,
+            )
+            assertThat(decision.page).isLessThan(permanentPageCount(rows.mapTo(HashSet()) { it.page }, 0))
+        }
+        assertThat(rows).hasSize(HomeLayoutRepository.MAX_PAGES)
     }
 }

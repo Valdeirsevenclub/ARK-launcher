@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Zasilanie z baterii</string>
     <string name="widget_resize_width">Zmień szerokość</string>
     <string name="widget_resize_height">Zmień wysokość</string>
+    <string name="pin_request_subtitle">Zostanie dodany w pierwszym wolnym miejscu.</string>
+    <string name="pin_request_add">Dodaj do ekranu głównego</string>
+    <string name="pin_request_added">Dodano %1$s do ekranu głównego</string>
+    <string name="pin_request_failed">Nie udało się dodać do ekranu głównego</string>
+    <string name="pin_request_locked_title">Układ jest zablokowany</string>
+    <string name="pin_request_locked_text">Wyłącz opcję „Zablokuj układ” w ustawieniach ARK-launchera, aby dodawać elementy.</string>
+    <string name="pin_request_full_title">Ekran główny jest pełny</string>
+    <string name="pin_request_full_text">Zwolnij miejsce na ekranie głównym, aby dodać nowe elementy.</string>
+    <string name="pin_request_close">Zamknij</string>
+    <string name="pin_request_work_profile">Widżetów z profilu służbowego nie można jeszcze dodawać.</string>
+    <string name="pin_request_too_big">Ten widżet jest za duży na ekran główny.</string>
 </resources>

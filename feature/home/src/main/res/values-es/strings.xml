@@ -135,4 +135,15 @@
     <string name="battery_widget_on_battery">Usando batería</string>
     <string name="widget_resize_width">Cambiar ancho</string>
     <string name="widget_resize_height">Cambiar alto</string>
+    <string name="pin_request_subtitle">Se añadirá en el primer espacio libre.</string>
+    <string name="pin_request_add">Añadir a la pantalla de inicio</string>
+    <string name="pin_request_added">%1$s añadido a la pantalla de inicio</string>
+    <string name="pin_request_failed">No se pudo añadir a la pantalla de inicio</string>
+    <string name="pin_request_locked_title">El escritorio está bloqueado</string>
+    <string name="pin_request_locked_text">Desactiva «Bloquear escritorio» en los ajustes de ARK-launcher para añadir elementos.</string>
+    <string name="pin_request_full_title">La pantalla de inicio está llena</string>
+    <string name="pin_request_full_text">Libera espacio en la pantalla de inicio para añadir nuevos elementos.</string>
+    <string name="pin_request_close">Cerrar</string>
+    <string name="pin_request_work_profile">Los widgets del perfil de trabajo aún no se pueden añadir.</string>
+    <string name="pin_request_too_big">Este widget es demasiado grande para la pantalla de inicio.</string>
 </resources>
