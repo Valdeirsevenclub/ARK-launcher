@@ -98,6 +98,7 @@ class SettingsViewModel @Inject constructor(
     fun setDoubleTapToLock(value: Boolean) = update { repository.setDoubleTapToLock(value) }
 
     fun setAppLabelTextScale(value: Float) = update { repository.setAppLabelTextScale(value) }
+    fun setIconScale(value: Float) = update { repository.setIconScale(value) }
     fun setAppLabelColor(argb: Int) = update { repository.setAppLabelColor(argb) }
     fun setTwoLineHomeLabels(value: Boolean) = update { repository.setTwoLineHomeLabels(value) }
     fun setTwoLineDrawerLabels(value: Boolean) = update { repository.setTwoLineDrawerLabels(value) }

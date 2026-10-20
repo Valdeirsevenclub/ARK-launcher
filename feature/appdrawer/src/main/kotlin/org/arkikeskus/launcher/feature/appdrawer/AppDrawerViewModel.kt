@@ -61,6 +61,7 @@ data class AppDrawerUiState(
     val showFrequentApps: Boolean = false,
     val frequentApps: List<AppItem> = emptyList(),
     val appLabelTextScale: Float = 1f,
+    val iconScale: Float = 1f,
     /** Labels may wrap onto a second line (Settings ▸ App drawer ▸ Two-line labels). */
     val twoLineLabels: Boolean = true,
     val drawerOpensAtTop: Boolean = true,
@@ -127,6 +128,7 @@ class AppDrawerViewModel @Inject constructor(
             desktopLocked = settings.desktopLocked,
             showFrequentApps = settings.showFrequentApps,
             appLabelTextScale = settings.appLabelTextScale,
+            iconScale = settings.iconScale,
             twoLineLabels = settings.twoLineDrawerLabels,
             drawerOpensAtTop = settings.drawerOpensAtTop,
         )

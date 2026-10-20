@@ -115,6 +115,7 @@ import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.AppLabel
 import org.arkikeskus.launcher.ui.component.LocalAppLabelLines
 import org.arkikeskus.launcher.ui.component.LocalAppLabelScale
+import org.arkikeskus.launcher.ui.component.LocalIconScale
 import org.arkikeskus.launcher.ui.component.iconSizeForCell
 import org.arkikeskus.launcher.ui.component.labelBlockHeight
 import org.arkikeskus.launcher.ui.component.labelFontFactor
@@ -377,10 +378,13 @@ internal fun Workspace(
         fontFactor = labelFontFactor(density.fontScale),
         lines = LocalAppLabelLines.current,
     )
+    // The user's icon-size setting scales the nominal 52dp BEFORE the cell clamp, so a dense grid still
+    // caps the icon and the label keeps its room.
+    val nominalIconSize = 52.dp * LocalIconScale.current
     val cellIconSize = if (gridSize.width > 0 && gridSize.height > 0) {
-        iconSizeForCell(with(density) { cellW.toDp() }, 52.dp, with(density) { cellH.toDp() }, labelBlock)
+        iconSizeForCell(with(density) { cellW.toDp() }, nominalIconSize, with(density) { cellH.toDp() }, labelBlock)
     } else {
-        52.dp
+        nominalIconSize
     }
     val moveThresholdPx = with(density) { 16.dp.toPx() }
     // Page flips only when the dragged icon is pushed right against the screen edge.

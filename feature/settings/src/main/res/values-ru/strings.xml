@@ -71,6 +71,7 @@
     <string name="settings_icon_pack">Набор значков</string>
     <string name="settings_icon_pack_system">Системные (по умолчанию)</string>
     <string name="settings_label_size">Размер подписей</string>
+    <string name="settings_icon_size">Размер значков</string>
     <string name="settings_label_color">Цвет подписей</string>
     <string name="settings_search">Поиск</string>
     <string name="settings_search_contacts">Поиск контактов</string>

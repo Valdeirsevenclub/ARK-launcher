@@ -105,6 +105,7 @@ import org.arkikeskus.launcher.ui.component.ContactAvatar
 import org.arkikeskus.launcher.ui.component.iconSizeForCell
 import org.arkikeskus.launcher.ui.component.LocalAppLabelLines
 import org.arkikeskus.launcher.ui.component.LocalAppLabelScale
+import org.arkikeskus.launcher.ui.component.LocalIconScale
 import org.arkikeskus.launcher.ui.component.LocalIconPack
 import org.arkikeskus.launcher.ui.component.LocalThemedIcons
 import org.arkikeskus.launcher.ui.component.NotificationBadge
@@ -183,6 +184,7 @@ fun AppDrawerScreen(
         LocalThemedIcons provides uiState.useThemedIcons,
         LocalIconPack provides uiState.iconPackPackage,
         LocalAppLabelScale provides uiState.appLabelTextScale,
+        LocalIconScale provides uiState.iconScale,
         LocalAppLabelLines provides if (uiState.twoLineLabels) 2 else 1,
     ) {
     ExpressiveTheme {
@@ -442,10 +444,12 @@ private fun AppDrawerContent(
             val density = LocalDensity.current
             // Icon size derived from the column width so 6–7 columns fit a narrow screen (the fixed
             // 56dp default bled into neighbouring cells there). 56dp until the grid is measured.
+            // The user's icon-size setting scales the nominal 56dp before the column clamp.
+            val nominalIconSize = 56.dp * LocalIconScale.current
             val drawerIconSize = if (gridWidthPx > 0 && columns > 0) {
-                iconSizeForCell(with(density) { (gridWidthPx.toFloat() / columns).toDp() }, 56.dp)
+                iconSizeForCell(with(density) { (gridWidthPx.toFloat() / columns).toDp() }, nominalIconSize)
             } else {
-                56.dp
+                nominalIconSize
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),

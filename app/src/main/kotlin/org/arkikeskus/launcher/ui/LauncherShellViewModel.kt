@@ -12,8 +12,9 @@ import org.arkikeskus.launcher.data.SettingsRepository
 import org.arkikeskus.launcher.model.IconEpochs
 import javax.inject.Inject
 
-/** The app-icon style (icon pack + themed), so the shell's floating drag icon matches the surfaces. */
-data class IconStyle(val iconPack: String = "", val themed: Boolean = false)
+/** The app-icon style (icon pack, themed, the icon-size multiplier), so the shell's floating drag icon
+ *  matches the surfaces. */
+data class IconStyle(val iconPack: String = "", val themed: Boolean = false, val iconScale: Float = 1f)
 
 /**
  * Exposes just the icon-style settings to [LauncherShell] so the single floating drag icon — drawn
@@ -27,7 +28,7 @@ class LauncherShellViewModel @Inject constructor(
     launcherAppsSource: LauncherAppsSource,
 ) : ViewModel() {
     val iconStyle: StateFlow<IconStyle> = settingsRepository.settings
-        .map { IconStyle(it.iconPackPackage, it.useThemedIcons) }
+        .map { IconStyle(it.iconPackPackage, it.useThemedIcons, it.iconScale) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IconStyle())
 
     val iconEpochs: StateFlow<IconEpochs> = launcherAppsSource.iconEpochs

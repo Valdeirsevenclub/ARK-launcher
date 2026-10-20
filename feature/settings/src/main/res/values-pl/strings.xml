@@ -71,6 +71,7 @@
     <string name="settings_icon_pack">Pakiet ikon</string>
     <string name="settings_icon_pack_system">Domyślny systemowy</string>
     <string name="settings_label_size">Rozmiar tekstu etykiet</string>
+    <string name="settings_icon_size">Rozmiar ikon</string>
     <string name="settings_label_color">Kolor tekstu etykiet</string>
     <string name="settings_search">Wyszukiwanie</string>
     <string name="settings_search_contacts">Wyszukuj kontakty</string>

@@ -102,6 +102,7 @@ import org.arkikeskus.launcher.ui.RenameDialog
 import org.arkikeskus.launcher.ui.rememberHomeDragController
 import org.arkikeskus.launcher.ui.component.LocalAppLabelLines
 import org.arkikeskus.launcher.ui.component.LocalAppLabelScale
+import org.arkikeskus.launcher.ui.component.LocalIconScale
 import org.arkikeskus.launcher.ui.component.LocalIconPack
 import org.arkikeskus.launcher.ui.component.LocalThemedIcons
 import kotlin.math.abs
@@ -497,6 +498,7 @@ fun HomeScreen(
         LocalThemedIcons provides settings.useThemedIcons,
         LocalIconPack provides settings.iconPackPackage,
         LocalAppLabelScale provides settings.appLabelTextScale,
+        LocalIconScale provides settings.iconScale,
         LocalAppLabelLines provides if (settings.twoLineHomeLabels) 2 else 1,
         // Force the workspace left-to-right even in RTL locales (ar/he/fa/ur). The grid renders with
         // RTL-aware Modifier.offset {} but the drag/drop, drop-ring and popup-anchor math is all

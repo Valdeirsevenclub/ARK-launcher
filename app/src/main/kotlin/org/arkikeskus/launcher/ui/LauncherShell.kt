@@ -39,6 +39,7 @@ import org.arkikeskus.launcher.feature.appdrawer.AppDrawerScreen
 import org.arkikeskus.launcher.feature.home.HomeScreen
 import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.LocalIconPack
+import org.arkikeskus.launcher.ui.component.LocalIconScale
 import org.arkikeskus.launcher.ui.component.LocalThemedIcons
 import kotlin.math.roundToInt
 
@@ -207,7 +208,8 @@ fun LauncherShell(
         // surface so it can travel between them. Positioned by the finger's root coords.
         val dragged = dragController.draggedApp
         if (dragged != null && dragController.moving) {
-            val sizeDp = 56.dp
+            // The floating icon follows the user's icon-size setting like the surfaces it travels between.
+            val sizeDp = 56.dp * iconStyle.iconScale
             val halfPx = with(density) { (sizeDp / 2).toPx() }
             Box(
                 modifier = Modifier
@@ -230,12 +232,13 @@ fun LauncherShell(
                 CompositionLocalProvider(
                     LocalIconPack provides iconStyle.iconPack,
                     LocalThemedIcons provides iconStyle.themed,
+                    LocalIconScale provides iconStyle.iconScale,
                 ) {
                     AppIcon(
                         appItem = dragged,
                         labelColor = Color.White,
                         showLabel = false,
-                        iconSize = 52.dp,
+                        iconSize = 52.dp * iconStyle.iconScale,
                     )
                 }
             }

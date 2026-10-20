@@ -70,6 +70,7 @@
     <string name="settings_icon_pack">Pack d\'icônes</string>
     <string name="settings_icon_pack_system">Système (par défaut)</string>
     <string name="settings_label_size">Taille du texte</string>
+    <string name="settings_icon_size">Taille des icônes</string>
     <string name="settings_label_color">Couleur du texte</string>
     <string name="settings_search">Recherche</string>
     <string name="settings_search_contacts">Rechercher dans les contacts</string>

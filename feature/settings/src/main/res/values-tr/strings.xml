@@ -69,6 +69,7 @@
     <string name="settings_icon_pack">Simge paketi</string>
     <string name="settings_icon_pack_system">Sistem varsayılanı</string>
     <string name="settings_label_size">Etiket metni boyutu</string>
+    <string name="settings_icon_size">Simge boyutu</string>
     <string name="settings_label_color">Etiket metni rengi</string>
     <string name="settings_search">Arama</string>
     <string name="settings_search_contacts">Kişilerde ara</string>

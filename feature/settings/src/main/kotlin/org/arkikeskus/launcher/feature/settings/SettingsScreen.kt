@@ -309,6 +309,12 @@ fun SettingsScreen(
                     onValueChange = viewModel::setAppLabelTextScale,
                     valueRange = 0.8f..1.6f,
                 )
+                SliderRow(
+                    label = stringResource(R.string.settings_icon_size),
+                    value = s.iconScale,
+                    onValueChange = viewModel::setIconScale,
+                    valueRange = 0.8f..1.3f,
+                )
                 LabelColorRow(selected = s.appLabelColor, onPick = viewModel::setAppLabelColor)
                 // Themed (monochrome) icons need the adaptive-icon monochrome API (Android 13+).
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

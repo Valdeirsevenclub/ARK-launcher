@@ -44,6 +44,7 @@ import org.arkikeskus.launcher.ui.DragSource
 import org.arkikeskus.launcher.ui.HomeDragController
 import org.arkikeskus.launcher.ui.IconPress
 import org.arkikeskus.launcher.ui.component.AppIcon
+import org.arkikeskus.launcher.ui.component.LocalIconScale
 import org.arkikeskus.launcher.ui.component.iconSizeForCell
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
@@ -93,10 +94,12 @@ fun Dock(
         onDispose { dragController.dockBounds = Rect.Zero }
     }
     // Icon size derived from the slot so 6–7 dock icons fit a narrow screen (fixed 52dp overlapped).
+    // The user's icon-size setting scales the nominal size before the slot clamp.
+    val nominalIconSize = DOCK_ICON_SIZE * LocalIconScale.current
     val dockIconSize = if (rowWidthPx > 0 && apps.isNotEmpty()) {
-        iconSizeForCell(with(density) { (rowWidthPx.toFloat() / apps.size).toDp() }, DOCK_ICON_SIZE)
+        iconSizeForCell(with(density) { (rowWidthPx.toFloat() / apps.size).toDp() }, nominalIconSize)
     } else {
-        DOCK_ICON_SIZE
+        nominalIconSize
     }
 
     val shape = RoundedCornerShape(30.dp)
