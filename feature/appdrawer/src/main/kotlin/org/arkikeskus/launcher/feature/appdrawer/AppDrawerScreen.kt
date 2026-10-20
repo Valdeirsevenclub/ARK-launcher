@@ -128,6 +128,8 @@ fun AppDrawerScreen(
     onDragOutStart: () -> Unit = {},
     homeSignals: Flow<Boolean> = emptyFlow(),
     drawerOpen: Boolean = true,
+    /** The popup's Widgets row: the home screen shows the app's widgets (the drawer closes first). */
+    onShowWidgets: ((AppItem) -> Unit)? = null,
     viewModel: AppDrawerViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -265,6 +267,7 @@ fun AppDrawerScreen(
             ),
             onDismiss = { menuTarget = null },
             onPinShortcut = { item -> viewModel.pinShortcut(item) },
+            onWidgets = if (uiState.desktopLocked) null else onShowWidgets?.let { { it(app) } },
         )
     }
 

@@ -10,4 +10,5 @@
     <string name="app_info_unavailable">Det gick inte att öppna appinformationen</string>
     <string name="home_full">Startskärmen är full</string>
     <string name="folder_default_name">Mapp</string>
+    <string name="popup_widgets">Widgetar</string>
 </resources>

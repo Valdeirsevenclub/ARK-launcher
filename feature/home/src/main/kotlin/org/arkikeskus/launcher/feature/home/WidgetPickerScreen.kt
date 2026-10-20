@@ -38,11 +38,24 @@ import kotlinx.coroutines.withContext
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.ui.LauncherIcons
 
-private data class WidgetGroup(val packageName: String, val label: String, val widgets: List<WidgetOption>)
-private data class WidgetOption(val choice: WidgetChoice, val label: String)
+internal data class WidgetGroup(val packageName: String, val label: String, val widgets: List<WidgetOption>)
+internal data class WidgetOption(val choice: WidgetChoice, val label: String)
+
+/** The groups the picker lists: only [onlyPackage]'s when an app's Widgets row opened it (the
+ *  search is hidden then), else every group with [query] in its label or in a widget's. */
+internal fun visibleWidgetGroups(all: List<WidgetGroup>, query: String, onlyPackage: String?): List<WidgetGroup> {
+    if (onlyPackage != null) return all.filter { it.packageName == onlyPackage }
+    val q = query.trim()
+    return all.mapNotNull { group ->
+        val widgets = if (group.label.contains(q, true)) group.widgets
+            else group.widgets.filter { it.label.contains(q, true) }
+        group.copy(widgets = widgets).takeIf { widgets.isNotEmpty() }
+    }
+}
 private data class WidgetPreviewData(val remote: RemoteViews? = null, val bitmap: Bitmap? = null)
 
-/** Searchable preview gallery. Keep the source composed (transparent) until its pointer is released. */
+/** Searchable preview gallery, or one app's widgets when [onlyPackage] is given (an icon's Widgets
+ *  row). Keep the source composed (transparent) until its pointer is released. */
 @Composable
 fun WidgetPickerScreen(
     dragController: WidgetDragController,
@@ -51,6 +64,7 @@ fun WidgetPickerScreen(
     onPick: (WidgetChoice, Int, Int) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onlyPackage: String? = null,
 ) {
     BackHandler(onBack = onDismiss)
     val context = LocalContext.current
@@ -82,11 +96,7 @@ fun WidgetPickerScreen(
         WidgetOption(WidgetChoice.Builtin(HomeItemEntity.BUILTIN_PEOPLE), stringResource(R.string.people_widget_name)),
     )
     val all = listOf(WidgetGroup("builtin", builtinTitle, builtins)) + groups.orEmpty()
-    val visible = all.mapNotNull { group ->
-        val widgets = if (group.label.contains(query.trim(), true)) group.widgets
-            else group.widgets.filter { it.label.contains(query.trim(), true) }
-        group.copy(widgets = widgets).takeIf { widgets.isNotEmpty() }
-    }
+    val visible = visibleWidgetGroups(all, query, onlyPackage)
     val dragging = dragController.moving
     Surface(
         modifier.graphicsLayer { alpha = if (dragging) 0f else 1f },
@@ -100,7 +110,7 @@ fun WidgetPickerScreen(
                     Icon(painterResource(LauncherIcons.Close), stringResource(R.string.widget_picker_close))
                 }
             }
-            OutlinedTextField(
+            if (onlyPackage == null) OutlinedTextField(
                 value = query, onValueChange = { query = it }, singleLine = true,
                 placeholder = { Text(stringResource(R.string.widget_search)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) },
@@ -266,7 +276,7 @@ internal fun WidgetPreview(
             Image(preview.bitmap!!.asImageBitmap(), null, modifier)
             SideEffect { onSnapshot { preview.bitmap } }
         }
-        else -> Icon(painterResource(R.drawable.ic_widgets), null, modifier.padding(24.dp),
+        else -> Icon(painterResource(LauncherIcons.Widgets), null, modifier.padding(24.dp),
             tint = MaterialTheme.colorScheme.primary)
     }
 }
@@ -283,7 +293,7 @@ private fun BuiltinWidgetPreview(type: String, modifier: Modifier) {
                     Text(stringResource(R.string.battery_widget_name), style = MaterialTheme.typography.labelMedium)
                 }
                 HomeItemEntity.BUILTIN_NOTIFICATIONS -> {
-                    Icon(painterResource(R.drawable.ic_widgets), null, Modifier.size(32.dp))
+                    Icon(painterResource(LauncherIcons.Widgets), null, Modifier.size(32.dp))
                     Text(stringResource(R.string.notifications_widget_name), style = MaterialTheme.typography.labelMedium)
                 }
                 HomeItemEntity.BUILTIN_PEOPLE -> {

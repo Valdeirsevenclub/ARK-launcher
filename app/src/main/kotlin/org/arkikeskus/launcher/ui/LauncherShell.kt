@@ -98,6 +98,8 @@ fun LauncherShell(
     // drag/settle cancels the previous one, so a fast finger flick can't pile up competing snapTo/
     // animateTo jobs that make the drawer lag behind the finger.
     var dragJob by remember { mutableStateOf<Job?>(null) }
+    // A drawer icon's Widgets row: the home screen opens its picker on this package once the drawer is away.
+    var showWidgetsFor by remember { mutableStateOf<String?>(null) }
 
     fun animateProgress(target: Float) {
         isDraggingDrawer = false
@@ -156,6 +158,8 @@ fun LauncherShell(
             homeSignals = homeSignals,
             drawerOpen = drawerOpen,
             dragController = dragController,
+            showWidgetsFor = showWidgetsFor,
+            onShowWidgetsHandled = { showWidgetsFor = null },
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -169,6 +173,10 @@ fun LauncherShell(
             onOpenSettings = {
                 animateProgress(0f)
                 onOpenSettings()
+            },
+            onShowWidgets = { app ->
+                animateProgress(0f)
+                showWidgetsFor = app.packageName
             },
             dragController = dragController,
             homeSignals = homeSignals,

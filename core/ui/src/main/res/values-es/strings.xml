@@ -10,4 +10,5 @@
     <string name="app_info_unavailable">No se pudo abrir la información de la aplicación</string>
     <string name="home_full">La pantalla de inicio está llena</string>
     <string name="folder_default_name">Carpeta</string>
+    <string name="popup_widgets">Widgets</string>
 </resources>

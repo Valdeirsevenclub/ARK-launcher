@@ -10,4 +10,5 @@
     <string name="app_info_unavailable">Nie udało się otworzyć informacji o aplikacji</string>
     <string name="home_full">Ekran główny jest pełny</string>
     <string name="folder_default_name">Folder</string>
+    <string name="popup_widgets">Widżety</string>
 </resources>

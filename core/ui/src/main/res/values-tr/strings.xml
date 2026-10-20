@@ -10,4 +10,5 @@
     <string name="app_info_unavailable">Uygulama bilgileri açılamadı</string>
     <string name="home_full">Ana ekran dolu</string>
     <string name="folder_default_name">Klasör</string>
+    <string name="popup_widgets">Widget\'lar</string>
 </resources>

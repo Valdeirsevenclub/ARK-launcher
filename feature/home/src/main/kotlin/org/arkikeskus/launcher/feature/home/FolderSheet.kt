@@ -63,6 +63,8 @@ internal fun FolderSheet(
     onRemoveFromFolder: (AppItem) -> Unit,
     onPinShortcut: (AppShortcuts.Item) -> Unit,
     onDismiss: () -> Unit,
+    /** The menu's Widgets row (an app with home-screen widgets); null hides it, e.g. a locked desktop. */
+    onWidgets: ((AppItem) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     // The long-pressed app and its icon's bounds in the sheet's window, for the menu's anchor.
@@ -132,6 +134,7 @@ internal fun FolderSheet(
                 ),
                 onDismiss = { menu = null },
                 onPinShortcut = onPinShortcut,
+                onWidgets = onWidgets?.let { { it(app) } },
             )
         }
     }

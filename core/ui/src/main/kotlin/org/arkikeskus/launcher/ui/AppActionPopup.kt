@@ -70,9 +70,10 @@ internal val SHORTCUT_ICON_SIZE = 24.dp
 
 /**
  * The Pixel-style long-press popup, shared by the home screen and the app drawer. Shows the app's
- * deep shortcuts (queried off the main thread) above the caller-supplied [actions], with a caret
- * pointing at the icon ([anchor] in root coords; [preferAbove] for dock/bottom items). Styled with
- * the shared Version C expressive palette.
+ * deep shortcuts (queried off the main thread) above a Widgets row — when [onWidgets] is given and
+ * [hasWidgets] finds the app home-screen widgets, as in Pixel Launcher — and the caller-supplied
+ * [actions], with a caret pointing at the icon ([anchor] in root coords; [preferAbove] for
+ * dock/bottom items). Styled with the shared Version C expressive palette.
  */
 @Composable
 fun AppActionPopup(
@@ -82,11 +83,19 @@ fun AppActionPopup(
     actions: List<PopupAction>,
     onDismiss: () -> Unit,
     onPinShortcut: ((AppShortcuts.Item) -> Unit)? = null,
+    onWidgets: (() -> Unit)? = null,
+    hasWidgets: (suspend (AppItem) -> Boolean)? = null,
 ) {
     val context = LocalContext.current
     var shortcuts by remember(app.key) { mutableStateOf<List<AppShortcuts.Item>>(emptyList()) }
     LaunchedEffect(app.key) {
         shortcuts = withContext(Dispatchers.IO) { AppShortcuts.query(context, app) }
+    }
+    var widgets by remember(app.key) { mutableStateOf(false) }
+    LaunchedEffect(app.key, onWidgets != null) {
+        widgets = onWidgets != null && (
+            hasWidgets?.invoke(app) ?: withContext(Dispatchers.IO) { AppWidgets.hasHomeScreenWidgets(context, app) }
+        )
     }
 
     ExpressivePopupCard(anchor = anchor, preferAbove = preferAbove, onDismiss = onDismiss) {
@@ -112,6 +121,12 @@ fun AppActionPopup(
                 modifier = Modifier.padding(vertical = 4.dp),
                 color = LocalExpressivePalette.current.trackOff,
             )
+        }
+        if (widgets && onWidgets != null) {
+            PopupRow(stringResource(R.string.popup_widgets), LauncherIcons.Widgets) {
+                onWidgets()
+                onDismiss()
+            }
         }
         actions.forEach { action ->
             PopupRow(action.label, action.icon) {

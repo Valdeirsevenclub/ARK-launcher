@@ -142,6 +142,10 @@ fun HomeScreen(
     /** The app drawer is open or sliding: the workspace is not at rest (see [Workspace]'s newItems). */
     drawerOpen: Boolean = false,
     dragController: HomeDragController = rememberHomeDragController(),
+    /** A package whose widgets another surface (the drawer's popup) asks to see: opens the picker
+     *  on that app's widgets, then [onShowWidgetsHandled] clears the request. */
+    showWidgetsFor: String? = null,
+    onShowWidgetsHandled: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -218,6 +222,14 @@ fun HomeScreen(
     val widgetConfigLauncher = LocalWidgetConfigLauncher.current
     val appWidgetManager = remember { AppWidgetManager.getInstance(context) }
     var showWidgetPicker by remember { mutableStateOf(false) }
+    // The package an icon's Widgets row opened the picker on; null for the full gallery.
+    var widgetPickerPackage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(showWidgetsFor) {
+        val pkg = showWidgetsFor ?: return@LaunchedEffect
+        widgetPickerPackage = pkg
+        showWidgetPicker = true
+        onShowWidgetsHandled()
+    }
     val widgetDrag = remember(dragController) { WidgetDragController(dragController) }
     val widgetScope = rememberCoroutineScope()
     var liveBindId by remember { mutableStateOf<Int?>(null) }
@@ -757,6 +769,10 @@ fun HomeScreen(
             ),
             onDismiss = { menuTarget = null },
             onPinShortcut = { item -> viewModel.pinShortcut(item) },
+            onWidgets = if (settings.desktopLocked) null else ({
+                widgetPickerPackage = menu.app.packageName
+                showWidgetPicker = true
+            }),
         )
     }
 
@@ -766,7 +782,8 @@ fun HomeScreen(
             preferAbove = above,
             items = buildList {
                 if (!settings.desktopLocked) {
-                    add(IconMenuItem(R.drawable.ic_widgets, stringResource(R.string.home_options_widgets)) {
+                    add(IconMenuItem(LauncherIcons.Widgets, stringResource(R.string.home_options_widgets)) {
+                        widgetPickerPackage = null
                         showWidgetPicker = true
                     })
                 }
@@ -827,8 +844,9 @@ fun HomeScreen(
                 val target = widgetDrag.findSpace?.invoke(sx, sy)
                 if (target == null) widgetMessage(R.string.widget_no_space) else addWidget(choice, target)
             },
-            onDismiss = { widgetDrag.cancel(); showWidgetPicker = false },
+            onDismiss = { widgetDrag.cancel(); showWidgetPicker = false; widgetPickerPackage = null },
             modifier = Modifier.fillMaxSize(),
+            onlyPackage = widgetPickerPackage,
         )
         }
     }
@@ -860,6 +878,12 @@ fun HomeScreen(
             onRenameApp = { renameTarget = it },
             onRemoveFromFolder = { viewModel.removeFromFolder(it, openFolder.id) },
             onPinShortcut = { viewModel.pinShortcut(it) },
+            // The sheet is its own window and would cover the picker: close it first.
+            onWidgets = if (settings.desktopLocked) null else ({ app ->
+                openFolderId = null
+                widgetPickerPackage = app.packageName
+                showWidgetPicker = true
+            }),
             onDismiss = { openFolderId = null },
         )
     }
