@@ -1,7 +1,9 @@
 Added
-- Other apps can add shortcuts and widgets to the home screen: a browser's "Add to Home screen", conversation shortcuts, an app's own "Add widget" button. ARK asks first, then puts the item on the first free spot.
-- Long-pressing an app inside a folder opens its menu; "Remove from folder" is one of the actions.
+- Other apps can add shortcuts and widgets to the home screen; ARK asks first, then uses the first free spot.
+- Long-pressing an app inside a folder opens its menu, with "Remove from folder".
+- "Widgets" in the app menu opens that app's widgets.
+- Dropping an app from the drawer or dock onto a home icon makes a folder.
 
 Changed
-- The long-press menu lists an app's shortcuts like Pixel Launcher, and pinned shortcuts follow the app's changes.
+- Pixel-style shortcuts in the long-press menu; pinned shortcuts follow the app.
 - Back on the bare home screen does nothing.
