@@ -63,4 +63,12 @@ class IconSizingTest {
         assertThat(labelFontFactor(1f)).isEqualTo(1f)
         assertThat(labelFontFactor(2f)).isEqualTo(MAX_LABEL_FONT_SCALE)
     }
+
+    @Test
+    fun the_icon_scale_applies_before_the_cell_clamp() {
+        // The user's icon-size setting multiplies a surface's nominal size; the cell still caps it.
+        assertThat(iconSizeForCell(80.dp, 52.dp * 1.3f).value).isWithin(0.01f).of(67.6f)
+        assertThat(iconSizeForCell(60.dp, 52.dp * 1.3f)).isEqualTo(52.dp)
+        assertThat(iconSizeForCell(80.dp, 52.dp * 0.8f).value).isWithin(0.01f).of(41.6f)
+    }
 }

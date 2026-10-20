@@ -541,4 +541,23 @@ class SettingsRepositoryTest {
         restored.importRaw(mapOf("infinite_scroll" to "no"))
         assertThat(restored.settings.first().infiniteScroll).isTrue() // must not throw ClassCastException
     }
+
+    @Test
+    fun `icon scale clamps on write and read, survives a backup round-trip and rejects a wrong type`() = runTest {
+        val repo = newRepository()
+        repo.setIconScale(2f)
+        assertThat(repo.settings.first().iconScale).isEqualTo(1.3f)
+        val exported = repo.exportRaw()
+        assertThat(exported).containsEntry("icon_scale", 1.3f)
+
+        val restored = newRepository()
+        restored.importRaw(exported)
+        assertThat(restored.settings.first().iconScale).isEqualTo(1.3f)
+        restored.importRaw(mapOf("icon_scale" to 0.1))
+        assertThat(restored.settings.first().iconScale).isEqualTo(0.8f) // out of range: clamped on read
+        restored.importRaw(mapOf("icon_scale" to "big"))
+        // Wrong type: dropped (a restore starts from a cleared store, so the default is back) and no
+        // ClassCastException on the read.
+        assertThat(restored.settings.first().iconScale).isEqualTo(1.0f)
+    }
 }

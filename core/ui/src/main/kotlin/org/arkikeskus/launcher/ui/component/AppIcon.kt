@@ -55,6 +55,14 @@ val LocalIconEpochs = compositionLocalOf { IconEpochs() }
 val LocalAppLabelScale = compositionLocalOf { 1f }
 
 /**
+ * The user's icon-size multiplier under this subtree (1.0 = each surface's nominal size). A surface
+ * multiplies its nominal size by this BEFORE [iconSizeForCell] clamps it, so a dense grid still caps
+ * the icon and a hidden label keeps its room. Provided per surface (home, dock, drawer, the open
+ * folder, the shell's floating drag icon); standalone callers (settings previews, pickers) keep 1.0.
+ */
+val LocalIconScale = compositionLocalOf { 1f }
+
+/**
  * How many lines an [AppIcon] / [AppLabel] label may wrap onto under this subtree (1 or 2). Provided
  * per surface from the user's two-line switches — home (apps, folders, shortcuts) and drawer have
  * their own — so every label on a surface follows one setting. Default 1 keeps standalone callers

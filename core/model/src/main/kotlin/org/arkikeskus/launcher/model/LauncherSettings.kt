@@ -48,6 +48,9 @@ data class LauncherSettings(
     val drawerOpensAtTop: Boolean = true,
     /** Size multiplier for app icon labels across home/dock/drawer/folders (1.0 = the default 11sp). */
     val appLabelTextScale: Float = 1.0f,
+    /** Size multiplier for app icons across home/dock/drawer/folders (1.0 = each surface's nominal size;
+     *  the cell still caps the result). */
+    val iconScale: Float = 1.0f,
     /** Let home-screen labels (apps, folders, shortcuts) wrap onto a second line. Off keeps the
      *  single line the home grid has always had; the dock stays single-line either way. */
     val twoLineHomeLabels: Boolean = false,
