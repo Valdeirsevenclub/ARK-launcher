@@ -344,6 +344,90 @@ class HomeLayoutRepository @Inject constructor(
             true
         }
 
+    /**
+     * Reorders [appItem] inside [folderId] so it sits just before [before] — null, or a [before] the
+     * folder no longer holds, puts it last. Works on the child rows, not on what the folder grid
+     * shows: a child the home screen hides (a disabled app, a paused profile) keeps its place next
+     * to its neighbours. The rows are parked at negative cells before the final indices so the
+     * unique (container, page, cellX, cellY) index never trips. False when the folder does not hold
+     * the app (it vanished during the drag): nothing changed.
+     */
+    suspend fun moveWithinFolder(folderId: Long, appItem: AppItem, before: AppItem?): Boolean =
+        db.withTransaction {
+            val children = dao.getContainerOrdered(folderId)
+            val moving = children.firstOrNull { it.key == appItem.key } ?: return@withTransaction false
+            val rest = children.filter { it.id != moving.id }
+            val insertAt = before?.let { b -> rest.indexOfFirst { it.key == b.key } }?.takeIf { it >= 0 } ?: rest.size
+            val order = rest.toMutableList().apply { add(insertAt, moving) }
+            if (order.map { it.id } == children.map { it.id }) return@withTransaction true
+            order.forEachIndexed { i, child -> dao.moveById(child.id, folderId, 0, -1 - i, 0) }
+            order.forEachIndexed { i, child -> dao.moveById(child.id, folderId, 0, i, 0) }
+            true
+        }
+
+    /**
+     * An app dragged out of an open folder onto a home cell: the child row itself leaves [folderId]
+     * for the cell with exactly [placeAt]'s rules — an empty cell takes it, an app there folds the two
+     * into a new folder named [folderName] (that app first), a folder there takes it in at the end,
+     * the source folder's own cell changes nothing, a shortcut's, widget's or builtin's cell sends it
+     * to the first free cell. An app that already has its own home icon merges into it (the child
+     * row goes) instead of making a duplicate icon. [PlaceResult.HomeFull] — nothing changed — when
+     * it needs a cell and every page the pager shows is full, or when [page] is one the pager never
+     * shows (the trailing drop page). Never [PlaceResult.Blocked]. The remaining children are
+     * re-indexed and a folder left with one app dissolves.
+     */
+    suspend fun moveOutOfFolderTo(
+        appItem: AppItem,
+        folderId: Long,
+        page: Int,
+        cellX: Int,
+        cellY: Int,
+        columns: Int,
+        rows: Int,
+        folderName: String,
+    ): PlaceResult =
+        db.withTransaction {
+            val child = dao.getByKey(folderId, appItem.packageName, appItem.className, appItem.userSerial)
+                ?: return@withTransaction PlaceResult.Placed
+            if (onHome(child)) {
+                dao.deleteById(child.id)
+            } else {
+                if (!isShownPage(page)) return@withTransaction PlaceResult.HomeFull
+                val occupant = dao.getAt(HOME, page, cellX, cellY)
+                when {
+                    occupant?.id == folderId -> return@withTransaction PlaceResult.Placed
+                    occupant?.isApp == true -> foldApps(occupant, child, appItem, folderName)
+                    occupant?.isFolder == true -> joinFolder(occupant.id, child, appItem)
+                    else -> {
+                        val items = dao.getContainer(HOME)
+                        val (p, x, y) = if (occupant == null && !cellInWidget(items, -1L, page, cellX, cellY)) {
+                            Triple(page, cellX, cellY)
+                        } else {
+                            firstFreeCell(items, columns, rows)
+                        }
+                        if (!isShownPage(p)) return@withTransaction PlaceResult.HomeFull
+                        dao.moveById(child.id, HOME, p, x, y)
+                    }
+                }
+            }
+            reindexFolder(folderId)
+            dissolveIfNeeded(folderId)
+            PlaceResult.Placed
+        }
+
+    /** Deletes the child row of [appItem] in [folderId] — the app went to the dock, or to the remove
+     *  pill — then re-indexes the rest and dissolves a folder left with one app. No-op when the row
+     *  is already gone. */
+    suspend fun removeChild(appItem: AppItem, folderId: Long) {
+        db.withTransaction {
+            val child = dao.getByKey(folderId, appItem.packageName, appItem.className, appItem.userSerial)
+                ?: return@withTransaction
+            dao.deleteById(child.id)
+            reindexFolder(folderId)
+            dissolveIfNeeded(folderId)
+        }
+    }
+
     suspend fun renameFolder(folderId: Long, name: String) {
         dao.renameFolder(folderId, name)
     }
