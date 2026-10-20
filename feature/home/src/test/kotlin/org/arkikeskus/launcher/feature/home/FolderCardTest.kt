@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
@@ -342,5 +343,155 @@ class FolderCardTest {
         compose.waitForIdle()
         assertThat(rootLeft("Maps")).isLessThan(rootLeft("Notes"))
         assertThat(rootLeft("Notes")).isLessThan(rootLeft("Mail"))
+    }
+
+    // --- drag out of the card ---
+
+    private fun cardBounds(): Rect = compose.onNodeWithTag("folderCard").fetchSemanticsNode().boundsInRoot
+    private fun rootBounds(): Rect = compose.onRoot().fetchSemanticsNode().boundsInRoot
+
+    /** A point on the home screen below the card. */
+    private fun below(): Offset {
+        val card = cardBounds()
+        val root = rootBounds()
+        return Offset(root.center.x, (card.bottom + root.bottom) / 2f)
+    }
+
+    /** Lifts [label] and pulls it out through the card's bottom edge to [to]; the card stays composed. */
+    private fun dragOut(label: String, to: Offset = below()) {
+        val card = cardBounds()
+        hold(label)
+        moveTo(Offset(rootCenter(label).x, card.bottom - 1f))
+        moveTo(to)
+        assertThat(drag.moving).isTrue()
+        assertThat(drag.leftSource).isTrue()
+        assertThat(drag.source).isEqualTo(DragSource.Folder)
+        compose.onNodeWithTag("folderCard").assertExists()
+    }
+
+    private fun homeBelowTheCard() {
+        val card = cardBounds()
+        val root = rootBounds()
+        compose.runOnUiThread {
+            drag.gridBounds = Rect(0f, card.bottom + 1f, root.right, root.bottom)
+            drag.columns = 4
+            drag.rows = 5
+            drag.currentPage = 2
+        }
+    }
+
+    @Test fun draggingPastTheCardEdgeLeavesTheSourceAndDropsOnTheHomeCell() {
+        show()
+        homeBelowTheCard()
+        val target = below()
+
+        dragOut("Mail", target)
+        release("Mail")
+
+        assertThat(homeDrops).containsExactly(mail to drag.cellAt(target))
+        assertThat(dragOutEnds).isEqualTo(1)
+        assertThat(reorders).isEmpty()
+        assertThat(dockDrops).isEmpty()
+        assertThat(drag.isDragging).isFalse()
+    }
+
+    @Test fun aDropOnTheDockWithRoomGoesToTheDock() {
+        show()
+        val card = cardBounds()
+        val root = rootBounds()
+        compose.runOnUiThread {
+            drag.dockBounds = Rect(0f, root.bottom - 100f, root.right, root.bottom)
+            drag.dockHasSpace = true
+            drag.gridBounds = Rect(0f, card.bottom + 1f, root.right, root.bottom - 100f)
+        }
+
+        dragOut("Maps", Offset(root.center.x, root.bottom - 50f))
+        release("Maps")
+
+        assertThat(dockDrops).containsExactly(maps)
+        assertThat(homeDrops).isEmpty()
+        assertThat(dragOutEnds).isEqualTo(1)
+    }
+
+    @Test fun aDropOnAFullDockCallsNothingButStillEndsTheDragOut() {
+        show()
+        val card = cardBounds()
+        val root = rootBounds()
+        compose.runOnUiThread {
+            drag.dockBounds = Rect(0f, root.bottom - 100f, root.right, root.bottom)
+            drag.dockHasSpace = false
+            drag.gridBounds = Rect(0f, card.bottom + 1f, root.right, root.bottom - 100f)
+        }
+
+        dragOut("Maps", Offset(root.center.x, root.bottom - 50f))
+        release("Maps")
+
+        assertNothingDropped()
+        assertThat(dragOutEnds).isEqualTo(1)
+        assertThat(launched).isEmpty()
+    }
+
+    @Test fun aDropOnNothingCallsNothingButStillEndsTheDragOut() {
+        show()
+        compose.runOnUiThread {
+            drag.gridBounds = Rect.Zero
+            drag.dockBounds = Rect.Zero
+            drag.removeBounds = Rect.Zero
+        }
+
+        dragOut("Mail")
+        release("Mail")
+
+        assertNothingDropped()
+        assertThat(dragOutEnds).isEqualTo(1)
+        assertThat(drag.isDragging).isFalse()
+    }
+
+    @Test fun aDropOnTheRemovePillRemovesEntirely() {
+        show()
+        homeBelowTheCard()
+        val card = cardBounds()
+        val root = rootBounds()
+        compose.runOnUiThread { drag.removeBounds = Rect(root.center.x - 80f, 0f, root.center.x + 80f, 60f) }
+
+        hold("Mail")
+        moveTo(Offset(rootCenter("Mail").x, card.top + 1f))
+        moveTo(Offset(root.center.x, 30f))
+        assertThat(drag.leftSource).isTrue()
+        release("Mail")
+
+        assertThat(removeDrops).containsExactly(mail)
+        assertThat(homeDrops).isEmpty()
+        assertThat(dragOutEnds).isEqualTo(1)
+    }
+
+    @Test fun aMoveInsideTheCardNeverSetsLeftSource() {
+        show()
+        homeBelowTheCard()
+        val mailCenter = rootCenter("Mail")
+
+        hold("Notes")
+        moveTo(mailCenter)
+        assertThat(drag.moving).isTrue()
+        assertThat(drag.leftSource).isFalse()
+        release("Notes")
+
+        assertThat(dragOutEnds).isEqualTo(0)
+        assertThat(dismissed).isEqualTo(0)
+        assertThat(homeDrops).isEmpty()
+    }
+
+    @Test fun aCancelledLiftDropsNothingOnRelease() {
+        show()
+        homeBelowTheCard()
+
+        dragOut("Mail")
+        compose.runOnUiThread { drag.cancel() }
+        compose.waitForIdle()
+        release("Mail")
+
+        assertNothingDropped()
+        assertThat(dragOutEnds).isEqualTo(1)
+        assertThat(drag.isDragging).isFalse()
     }
 }

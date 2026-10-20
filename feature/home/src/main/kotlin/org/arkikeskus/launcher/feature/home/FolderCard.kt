@@ -1,6 +1,8 @@
 package org.arkikeskus.launcher.feature.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -130,7 +132,21 @@ internal fun FolderCard(
     val currentOnAppClick by rememberUpdatedState(onAppClick)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     val currentOnReorder by rememberUpdatedState(onReorder)
+    val currentOnDropOnHome by rememberUpdatedState(onDropOnHome)
+    val currentOnDropOnDock by rememberUpdatedState(onDropOnDock)
+    val currentOnDropOnRemove by rememberUpdatedState(onDropOnRemove)
+    val currentOnDragOutEnd by rememberUpdatedState(onDragOutEnd)
     val currentFolder by rememberUpdatedState(folder)
+
+    // Root-space bounds of the card: a lifted icon pulled past them leaves the folder for the home
+    // screen. The card then fades out but STAYS COMPOSED until the gesture ends — removing the node
+    // that owns the pointer gesture would cancel the drag — and the host closes it on [onDragOutEnd].
+    var cardBounds by remember { mutableStateOf(Rect.Zero) }
+    var dragOut by remember { mutableStateOf(false) }
+    val dragOutAlpha = remember { Animatable(1f) }
+    LaunchedEffect(dragOut) {
+        if (dragOut) dragOutAlpha.animateTo(0f, tween(durationMillis = 180))
+    }
 
     // The long-pressed app and its icon's root bounds, for the menu's anchor.
     var menu by remember { mutableStateOf<Pair<AppItem, Rect>?>(null) }
@@ -162,6 +178,7 @@ internal fun FolderCard(
         modifier = Modifier
             .fillMaxSize()
             .testTag("folderScrim")
+            .graphicsLayer { alpha = dragOutAlpha.value }
             .background(Color.Black.copy(alpha = 0.5f))
             // The scrim swallows every touch under it: nothing reaches the home grid behind.
             .pointerInput(Unit) { detectTapGestures { currentOnDismiss() } },
@@ -178,7 +195,8 @@ internal fun FolderCard(
                 .semantics { dismiss { currentOnDismiss(); true } }
                 // A tap in the card's own padding closes nothing (and the consumed release keeps
                 // the scrim's tap from firing for a press that began inside the card).
-                .pointerInput(Unit) { detectTapGestures { } },
+                .pointerInput(Unit) { detectTapGestures { } }
+                .onGloballyPositioned { cardBounds = it.boundsInRoot() },
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 var name by remember(folder.id) { mutableStateOf(folder.name) }
@@ -251,7 +269,16 @@ internal fun FolderCard(
                                             dragController.beginMove(leftSource = false)
                                         }
                                         if (!dragController.moving) return@drag
-                                        dragController.update(coords.localToRoot(change.position))
+                                        val root = coords.localToRoot(change.position)
+                                        dragController.update(root)
+                                        // Past the card's edge the drag is over the home screen:
+                                        // the home cues may show, the card fades, and coming back
+                                        // over it does not reopen the folder.
+                                        if (!dragController.leftSource && !cardBounds.contains(root)) {
+                                            dragController.markLeftSource()
+                                            dragOut = true
+                                            targetIndex = null
+                                        }
                                         if (!dragController.leftSource) {
                                             val info = gridState.layoutInfo
                                             val rowHeightPx = info.visibleItemsInfo.firstOrNull()?.size?.height?.toFloat() ?: 1f
@@ -271,7 +298,23 @@ internal fun FolderCard(
                                     when {
                                         !live -> Unit
                                         !dragController.moving -> menu = app to itemRect
-                                        !dragController.leftSource -> {
+                                        dragController.leftSource -> {
+                                            // The drawer's drop rules: the remove pill, the dock when
+                                            // it has room, a home cell; anywhere else leaves the app
+                                            // in the folder (which the host closes all the same).
+                                            val root = dragController.rootPosition
+                                            when {
+                                                dragController.isOverRemove(root) -> currentOnDropOnRemove(app)
+                                                dragController.isOverDock(root) && dragController.dockHasSpace ->
+                                                    currentOnDropOnDock(app)
+                                                dragController.isOverGrid(root) -> {
+                                                    val (page, cx, cy) = dragController.cellAt(root)
+                                                    currentOnDropOnHome(app, page, cx, cy)
+                                                }
+                                            }
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                        else -> {
                                             val index = targetIndex
                                             val base = currentShownBase
                                             val preview = if (index != null) reorderedFolderApps(base, app, index) else base
@@ -286,6 +329,7 @@ internal fun FolderCard(
                                     dragController.stop(token)
                                     lifted = false
                                     targetIndex = null
+                                    if (dragOut) currentOnDragOutEnd()
                                 }
                             }
                         },
