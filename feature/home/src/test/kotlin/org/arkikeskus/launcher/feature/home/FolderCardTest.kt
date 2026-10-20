@@ -21,6 +21,7 @@ import androidx.compose.ui.test.down
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
@@ -28,6 +29,7 @@ import androidx.compose.ui.test.up
 import com.google.common.truth.Truth.assertThat
 import org.arkikeskus.launcher.designsystem.theme.LauncherTheme
 import org.arkikeskus.launcher.model.AppItem
+import org.arkikeskus.launcher.ui.DragSource
 import org.arkikeskus.launcher.ui.HomeDragController
 import org.junit.Rule
 import org.junit.Test
@@ -236,5 +238,109 @@ class FolderCardTest {
 
         compose.onNodeWithText("Mail").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick))
         compose.onNodeWithText("Mail").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+    }
+
+    // --- reorder inside the card ---
+
+    private fun rootCenter(label: String): Offset = compose.onNodeWithText(label).fetchSemanticsNode().boundsInRoot.center
+
+    private fun rootLeft(label: String): Float = compose.onNodeWithText(label).fetchSemanticsNode().boundsInRoot.left
+
+    /** Continues the held gesture: the finger moves to [root] (root coordinates). */
+    private fun moveTo(root: Offset) {
+        compose.onRoot().performTouchInput { moveTo(root) }
+        compose.waitForIdle()
+    }
+
+    @Test fun reorderedFolderAppsMovesToFrontMiddleAndEnd() {
+        val a = mail
+        val b = maps
+        val c = notes
+        val d = AppItem("com.d", "Main", user, 0L, "D")
+        val apps = listOf(a, b, c, d)
+
+        assertThat(reorderedFolderApps(apps, d, 0)).containsExactly(d, a, b, c).inOrder()
+        assertThat(reorderedFolderApps(apps, a, 3)).containsExactly(b, c, d, a).inOrder()
+        assertThat(reorderedFolderApps(apps, d, 1)).containsExactly(a, d, b, c).inOrder()
+        assertThat(reorderedFolderApps(apps, b, 1)).containsExactly(a, b, c, d).inOrder()
+        assertThat(reorderedFolderApps(apps, a, 99)).containsExactly(b, c, d, a).inOrder()
+    }
+
+    @Test fun folderSlotIndexCountsTheScrollOffset() {
+        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, 100f, 0f, 20)).isEqualTo(0)
+        assertThat(folderSlotIndex(Offset(350f, 10f), 400f, 100f, 0f, 20)).isEqualTo(3)
+        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, 100f, 400f, 20)).isEqualTo(16)
+        assertThat(folderSlotIndex(Offset(350f, 10f), 400f, 100f, 400f, 18)).isEqualTo(17)
+        assertThat(folderSlotIndex(Offset(-5f, -5f), 400f, 100f, 0f, 20)).isEqualTo(0)
+    }
+
+    @Test fun aLongPressAndMoveInsideTheCardReordersAndReportsTheNeighbour() {
+        show()
+        val mailCenter = rootCenter("Mail")
+        val notesCenter = rootCenter("Notes")
+
+        hold("Notes")
+        moveTo((notesCenter + mailCenter) / 2f)
+        moveTo(mailCenter)
+        assertThat(drag.moving).isTrue()
+        assertThat(drag.leftSource).isFalse()
+        assertThat(drag.source).isEqualTo(DragSource.Folder)
+        release("Notes")
+
+        assertThat(reorders).containsExactly(notes to mail)
+        // The optimistic preview stays until the folder's apps change.
+        assertThat(rootLeft("Notes")).isLessThan(rootLeft("Mail"))
+        assertThat(rootLeft("Mail")).isLessThan(rootLeft("Maps"))
+        assertThat(homeDrops).isEmpty()
+        assertThat(dockDrops).isEmpty()
+        assertThat(dragOutEnds).isEqualTo(0)
+        assertThat(dismissed).isEqualTo(0)
+    }
+
+    @Test fun aMoveThatEndsInTheSameSlotWritesNothing() {
+        show()
+        val mailCenter = rootCenter("Mail")
+
+        hold("Mail")
+        moveTo(mailCenter + Offset(60f, 0f))
+        moveTo(mailCenter)
+        assertThat(drag.moving).isTrue()
+        release("Mail")
+
+        assertThat(reorders).isEmpty()
+        compose.onNodeWithText("App info").assertDoesNotExist()
+    }
+
+    @Test fun theGridDoesNotScrollWhileAnItemIsLifted() {
+        folderState = folderState.copy(apps = (1..24).map { AppItem("com.a$it", "Main", user, 0L, "a$it") })
+        show()
+        compose.onNodeWithText("a24").assertDoesNotExist()
+        val a1 = rootCenter("a1")
+
+        hold("a1")
+        moveTo(a1 + Offset(0f, 150f))
+
+        compose.onNodeWithText("a1").assertIsDisplayed()
+        compose.onNodeWithText("a24").assertDoesNotExist()
+        release("a1")
+    }
+
+    @Test fun theDatabaseOrderReplacesThePreviewWhenItArrives() {
+        show()
+        val mailCenter = rootCenter("Mail")
+        hold("Notes")
+        moveTo(mailCenter)
+        release("Notes")
+        assertThat(reorders).containsExactly(notes to mail)
+
+        compose.runOnIdle { folderState = folderState.copy(apps = listOf(notes, mail, maps)) }
+        compose.waitForIdle()
+        assertThat(rootLeft("Notes")).isLessThan(rootLeft("Mail"))
+        assertThat(rootLeft("Mail")).isLessThan(rootLeft("Maps"))
+
+        compose.runOnIdle { folderState = folderState.copy(apps = listOf(maps, notes, mail)) }
+        compose.waitForIdle()
+        assertThat(rootLeft("Maps")).isLessThan(rootLeft("Notes"))
+        assertThat(rootLeft("Notes")).isLessThan(rootLeft("Mail"))
     }
 }

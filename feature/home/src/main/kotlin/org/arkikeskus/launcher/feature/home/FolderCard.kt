@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -38,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -127,9 +129,26 @@ internal fun FolderCard(
 
     val currentOnAppClick by rememberUpdatedState(onAppClick)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
+    val currentOnReorder by rememberUpdatedState(onReorder)
+    val currentFolder by rememberUpdatedState(folder)
 
     // The long-pressed app and its icon's root bounds, for the menu's anchor.
     var menu by remember { mutableStateOf<Pair<AppItem, Rect>?>(null) }
+    // Live reorder: the slot under the finger while a lifted icon moves inside the card, and the
+    // order a release committed, kept (optimistically) until the folder's apps change — to that
+    // order once the database caught up, or to whatever else they became.
+    var targetIndex by remember { mutableStateOf<Int?>(null) }
+    var pendingOrder by remember { mutableStateOf<List<AppItem>?>(null) }
+    var pendingBaseline by remember { mutableStateOf<List<AppItem>?>(null) }
+    LaunchedEffect(folder.apps) {
+        if (pendingOrder != null && folder.apps != pendingBaseline) pendingOrder = null
+    }
+    val shownBase = pendingOrder ?: folder.apps
+    val currentShownBase by rememberUpdatedState(shownBase)
+    val dragged = dragController.draggedApp
+    val reordering = dragController.moving && !dragController.leftSource &&
+        dragController.source == DragSource.Folder && dragged != null
+    val shown = targetIndex?.takeIf { reordering }?.let { reorderedFolderApps(shownBase, dragged!!, it) } ?: shownBase
     // Root-space bounds of each icon (by app key) and of the grid container, for the DOWN hit-test.
     val itemBounds = remember { mutableStateMapOf<String, Rect>() }
     var gridCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -197,7 +216,7 @@ internal fun FolderCard(
                                 val coords = gridCoords ?: return@awaitEachGesture
                                 val rootDown = coords.localToRoot(down.position)
                                 val hit = itemBounds.entries.firstOrNull { it.value.contains(rootDown) } ?: return@awaitEachGesture
-                                val app = folder.apps.firstOrNull { it.key == hit.key } ?: return@awaitEachGesture
+                                val app = currentShownBase.firstOrNull { it.key == hit.key } ?: return@awaitEachGesture
                                 val itemRect = hit.value
                                 val outcome = awaitFolderPress(down, itemRect) { coords.localToRoot(it) }
                                 val holdPos = when (outcome) {
@@ -217,14 +236,56 @@ internal fun FolderCard(
                                 }
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 lifted = true
+                                val dragStartPx = IconPress.DragStartThreshold.toPx()
                                 try {
-                                    val completed = drag(down.id) { change -> change.consume() }
+                                    val completed = drag(down.id) { change ->
+                                        change.consume()
+                                        if (!dragController.owns(token)) return@drag
+                                        // A still long-press (with finger jitter) keeps showing the
+                                        // menu on release; only a pull past the threshold moves.
+                                        if (!dragController.moving &&
+                                            IconPress.startsDrag(change.position, holdPos, dragStartPx)
+                                        ) {
+                                            // Moving inside the card is a reorder, not a drag over
+                                            // the home screen: nothing lights up behind the card.
+                                            dragController.beginMove(leftSource = false)
+                                        }
+                                        if (!dragController.moving) return@drag
+                                        dragController.update(coords.localToRoot(change.position))
+                                        if (!dragController.leftSource) {
+                                            val info = gridState.layoutInfo
+                                            val rowHeightPx = info.visibleItemsInfo.firstOrNull()?.size?.height?.toFloat() ?: 1f
+                                            val scrollOffsetPx = (gridState.firstVisibleItemIndex / FOLDER_COLUMNS) * rowHeightPx +
+                                                gridState.firstVisibleItemScrollOffset
+                                            val index = folderSlotIndex(
+                                                change.position, size.width.toFloat(), rowHeightPx, scrollOffsetPx, currentShownBase.size,
+                                            )
+                                            if (index != targetIndex) {
+                                                targetIndex = index
+                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            }
+                                        }
+                                    }
                                     // Nothing on release once HOME cancelled the lift.
                                     val live = completed && dragController.owns(token)
-                                    if (live && !dragController.moving) menu = app to itemRect
+                                    when {
+                                        !live -> Unit
+                                        !dragController.moving -> menu = app to itemRect
+                                        !dragController.leftSource -> {
+                                            val index = targetIndex
+                                            val base = currentShownBase
+                                            val preview = if (index != null) reorderedFolderApps(base, app, index) else base
+                                            if (preview != base) {
+                                                pendingOrder = preview
+                                                pendingBaseline = currentFolder.apps
+                                                currentOnReorder(app, preview.getOrNull(preview.indexOf(app) + 1))
+                                            }
+                                        }
+                                    }
                                 } finally {
                                     dragController.stop(token)
                                     lifted = false
+                                    targetIndex = null
                                 }
                             }
                         },
@@ -237,7 +298,7 @@ internal fun FolderCard(
                             .fillMaxWidth()
                             .heightIn(max = gridMaxHeight),
                     ) {
-                        items(items = folder.apps, key = { it.key }) { app ->
+                        items(items = shown, key = { it.key }) { app ->
                             AppIcon(
                                 appItem = app,
                                 labelColor = MaterialTheme.colorScheme.onSurface,
@@ -256,6 +317,13 @@ internal fun FolderCard(
                                         if (!locked) onLongClick { menu = app to (itemBounds[app.key] ?: Rect.Zero); true }
                                     }
                                     .animateItem()
+                                    // The moving icon's slot stays reserved and shows a faint copy —
+                                    // the hole the others slide around; the shell draws the real one.
+                                    .graphicsLayer {
+                                        alpha = if (dragController.moving && dragController.source == DragSource.Folder &&
+                                            dragController.draggedApp?.key == app.key
+                                        ) 0.3f else 1f
+                                    }
                                     .padding(vertical = 10.dp, horizontal = 4.dp),
                             )
                         }
@@ -285,6 +353,31 @@ internal fun FolderCard(
             onWidgets = onWidgets?.let { { it(app) } },
         )
     }
+}
+
+/** [apps] with [moving] taken out and put back at [toIndex] (clamped to the list). */
+internal fun reorderedFolderApps(apps: List<AppItem>, moving: AppItem, toIndex: Int): List<AppItem> {
+    val rest = apps.filter { it.key != moving.key }
+    if (rest.size == apps.size) return apps
+    return rest.toMutableList().apply { add(toIndex.coerceIn(0, rest.size), moving) }
+}
+
+/**
+ * The grid slot under a finger at [local] (the grid container's coordinates), counting the rows
+ * scrolled out above ([scrollOffsetPx]); clamped to the [count] apps the folder shows.
+ */
+internal fun folderSlotIndex(
+    local: Offset,
+    gridWidthPx: Float,
+    rowHeightPx: Float,
+    scrollOffsetPx: Float,
+    count: Int,
+    columns: Int = FOLDER_COLUMNS,
+): Int {
+    val slotWidth = (gridWidthPx / columns).coerceAtLeast(1f)
+    val col = (local.x / slotWidth).toInt().coerceIn(0, columns - 1)
+    val row = ((local.y + scrollOffsetPx) / rowHeightPx.coerceAtLeast(1f)).toInt().coerceAtLeast(0)
+    return (row * columns + col).coerceIn(0, (count - 1).coerceAtLeast(0))
 }
 
 /**
