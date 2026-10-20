@@ -82,7 +82,6 @@
     <string name="rename_reset">Вернуть исходное</string>
     <string name="cancel">Отмена</string>
     <string name="save">Сохранить</string>
-    <string name="folder_default_name">Папка</string>
     <string name="folder_name_label">Название папки</string>
     <string name="folder_remove_app">Убрать из папки</string>
     <string name="home_options_widgets">Виджеты</string>

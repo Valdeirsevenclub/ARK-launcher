@@ -82,7 +82,6 @@
     <string name="rename_reset">Palauta oletus</string>
     <string name="cancel">Peruuta</string>
     <string name="save">Tallenna</string>
-    <string name="folder_default_name">Kansio</string>
     <string name="folder_name_label">Kansion nimi</string>
     <string name="folder_remove_app">Poista kansiosta</string>
     <string name="home_options_widgets">Widgetit</string>

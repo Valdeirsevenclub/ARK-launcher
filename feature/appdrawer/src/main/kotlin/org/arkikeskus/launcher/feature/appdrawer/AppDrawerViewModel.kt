@@ -203,10 +203,13 @@ class AppDrawerViewModel @Inject constructor(
         if (!homeLayoutRepository.addToHome(appItem, s.homeColumns, s.homeRows)) notify(HomeNotice.HomeFull)
     }
 
-    /** Drag-and-drop from the drawer onto a specific home cell (free cell, or first free if taken). */
-    fun addToHomeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int) = viewModelScope.launch {
+    /** Drag-and-drop from the drawer onto a specific home cell: a free cell takes the icon, an app
+     *  there makes a folder (named [folderName]) of the two, a folder there takes it in, anything
+     *  else sends it to the first free cell. */
+    fun addToHomeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int, folderName: String) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
-        if (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows) == PlaceResult.HomeFull) {
+        val result = homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows, folderName)
+        if (result == PlaceResult.HomeFull) {
             notify(HomeNotice.HomeFull)
         }
     }

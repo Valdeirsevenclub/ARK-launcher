@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">Verknüpfung nicht verfügbar</string>
     <string name="app_info_unavailable">App-Info konnte nicht geöffnet werden</string>
     <string name="home_full">Der Startbildschirm ist voll</string>
+    <string name="folder_default_name">Ordner</string>
 </resources>

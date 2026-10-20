@@ -97,6 +97,7 @@ import org.arkikeskus.launcher.ui.IconMenuItem
 import org.arkikeskus.launcher.ui.IconMenuPopup
 import org.arkikeskus.launcher.ui.LauncherIcons
 import org.arkikeskus.launcher.ui.PopupAction
+import org.arkikeskus.launcher.ui.R as UiR
 import org.arkikeskus.launcher.ui.RenameDialog
 import org.arkikeskus.launcher.ui.rememberHomeDragController
 import org.arkikeskus.launcher.ui.component.LocalAppLabelLines
@@ -211,7 +212,7 @@ fun HomeScreen(
     var homeOptions by remember { mutableStateOf<Pair<IntOffset, Boolean>?>(null) }
     // Page the workspace should show after a page was added or removed from the empty-area menu.
     val pageRequests = remember { MutableSharedFlow<Int>(extraBufferCapacity = 1) }
-    val defaultFolderName = stringResource(R.string.folder_default_name)
+    val defaultFolderName = stringResource(UiR.string.folder_default_name)
 
     val widgetHost = LocalAppWidgetHost.current
     val widgetConfigLauncher = LocalWidgetConfigLauncher.current
@@ -656,7 +657,7 @@ fun HomeScreen(
                     dragController = dragController,
                     onAppClick = viewModel::launch,
                     onReorder = viewModel::reorderDock,
-                    onMoveToHome = { app, page, cellX, cellY -> viewModel.moveToHome(app, page, cellX, cellY) },
+                    onMoveToHome = { app, page, cellX, cellY -> viewModel.moveToHome(app, page, cellX, cellY, defaultFolderName) },
                     onRemoveFromDock = { viewModel.removeFromDock(it) },
                     onAppMenu = { app, anchor -> menuTarget = AppMenuTarget(app, anchor, DragSource.Dock, anchor.y > windowHeightPx / 2) },
                     modifier = Modifier

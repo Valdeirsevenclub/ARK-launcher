@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">Skrót nie jest dostępny</string>
     <string name="app_info_unavailable">Nie udało się otworzyć informacji o aplikacji</string>
     <string name="home_full">Ekran główny jest pełny</string>
+    <string name="folder_default_name">Folder</string>
 </resources>

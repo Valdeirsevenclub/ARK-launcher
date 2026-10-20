@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">Raccourci non disponible</string>
     <string name="app_info_unavailable">Impossible d\'ouvrir les infos sur l\'application</string>
     <string name="home_full">L\'écran d\'accueil est plein</string>
+    <string name="folder_default_name">Dossier</string>
 </resources>

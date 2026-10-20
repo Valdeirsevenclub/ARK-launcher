@@ -98,6 +98,7 @@ import org.arkikeskus.launcher.ui.HomeDragController
 import org.arkikeskus.launcher.ui.IconPress
 import org.arkikeskus.launcher.ui.LauncherIcons
 import org.arkikeskus.launcher.ui.PopupAction
+import org.arkikeskus.launcher.ui.R as UiR
 import org.arkikeskus.launcher.ui.RenameDialog
 import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.ContactAvatar
@@ -131,6 +132,7 @@ fun AppDrawerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val defaultFolderName = stringResource(UiR.string.folder_default_name)
     // What the ViewModel could not do for the user (e.g. the home screen is full), shown once each.
     LaunchedEffect(viewModel) {
         viewModel.notices.collect { notice ->
@@ -208,7 +210,7 @@ fun AppDrawerScreen(
         onDrawerSettle = onDrawerSettle,
         dragController = dragController,
         onDragOutStart = onDragOutStart,
-        onDropOnHome = { app, page, cellX, cellY -> viewModel.addToHomeAt(app, page, cellX, cellY) },
+        onDropOnHome = { app, page, cellX, cellY -> viewModel.addToHomeAt(app, page, cellX, cellY, defaultFolderName) },
         onDropOnDock = { app -> viewModel.addToDock(app) },
         showLabels = uiState.showLabels,
         calc = uiState.calc,

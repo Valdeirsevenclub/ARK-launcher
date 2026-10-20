@@ -103,7 +103,7 @@ class HomeViewModelNoticesTest {
             val viewModel = wiring.homeViewModel()
             val notices = collectNotices(viewModel)
 
-            viewModel.moveToHome(app, page = 3, cellX = 0, cellY = 0)
+            viewModel.moveToHome(app, page = 3, cellX = 0, cellY = 0, folderName = "Folder")
 
             awaitUntil("the notice") { notices.isNotEmpty() }
             assertThat(notices).containsExactly(HomeNotice.HomeFull)

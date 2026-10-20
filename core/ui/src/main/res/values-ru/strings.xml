@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">Ярлык недоступен</string>
     <string name="app_info_unavailable">Не удалось открыть сведения о приложении</string>
     <string name="home_full">Главный экран заполнен</string>
+    <string name="folder_default_name">Папка</string>
 </resources>

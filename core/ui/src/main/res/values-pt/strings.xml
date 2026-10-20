@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">O atalho não está disponível</string>
     <string name="app_info_unavailable">Não foi possível abrir os detalhes do app</string>
     <string name="home_full">A tela inicial está cheia</string>
+    <string name="folder_default_name">Pasta</string>
 </resources>

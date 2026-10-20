@@ -82,7 +82,6 @@
     <string name="rename_reset">Restablecer</string>
     <string name="cancel">Cancelar</string>
     <string name="save">Guardar</string>
-    <string name="folder_default_name">Carpeta</string>
     <string name="folder_name_label">Nombre de la carpeta</string>
     <string name="folder_remove_app">Quitar de la carpeta</string>
     <string name="home_options_widgets">Widgets</string>

@@ -82,7 +82,6 @@
     <string name="rename_reset">Przywróć domyślną nazwę</string>
     <string name="cancel">Anuluj</string>
     <string name="save">Zapisz</string>
-    <string name="folder_default_name">Folder</string>
     <string name="folder_name_label">Nazwa folderu</string>
     <string name="folder_remove_app">Usuń z folderu</string>
     <string name="home_options_widgets">Widżety</string>

@@ -9,4 +9,5 @@
     <string name="shortcut_unavailable">Shortcut isn\'t available</string>
     <string name="app_info_unavailable">Could not open the app\'s details</string>
     <string name="home_full">The home screen is full</string>
+    <string name="folder_default_name">Folder</string>
 </resources>

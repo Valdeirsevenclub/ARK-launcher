@@ -613,13 +613,14 @@ class HomeViewModel @Inject constructor(
         return homeLayoutRepository.setWidgetBounds(rowId, page, cellX, cellY, spanX, spanY, s.homeColumns, s.homeRows)
     }
 
-    /** Cross-surface: an icon dragged from the dock onto a home cell — place it and leave the dock. */
-    fun moveToHome(appItem: AppItem, page: Int, cellX: Int, cellY: Int) = viewModelScope.launch {
+    /** Cross-surface: an icon dragged from the dock onto a home cell — place it (an app there makes
+     *  a folder named [folderName], a folder there takes it in) and leave the dock. */
+    fun moveToHome(appItem: AppItem, page: Int, cellX: Int, cellY: Int, folderName: String) = viewModelScope.launch {
         val s = settingsRepository.settings.first()
         // Add-first so an interruption can only duplicate, never lose; NonCancellable so a
         // ViewModel clear between the halves can't strand the item on both surfaces.
         withContext(NonCancellable) {
-            when (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows)) {
+            when (homeLayoutRepository.placeAt(appItem, page, cellX, cellY, s.homeColumns, s.homeRows, folderName)) {
                 PlaceResult.Placed -> settingsRepository.removeFromDock(appItem.key)
                 PlaceResult.HomeFull -> notify(HomeNotice.HomeFull)
                 PlaceResult.Blocked -> Unit // the icon snaps back to the dock

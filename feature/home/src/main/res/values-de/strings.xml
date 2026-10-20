@@ -82,7 +82,6 @@
     <string name="rename_reset">Auf Standard zurücksetzen</string>
     <string name="cancel">Abbrechen</string>
     <string name="save">Speichern</string>
-    <string name="folder_default_name">Ordner</string>
     <string name="folder_name_label">Ordnername</string>
     <string name="folder_remove_app">Aus dem Ordner entfernen</string>
     <string name="home_options_widgets">Widgets</string>

@@ -77,12 +77,36 @@ class HomeLayoutRepository @Inject constructor(
             moveOrSwap(source, page, cellX, cellY)
         }
 
-    /** Places [appItem] on the home screen at a cell (a dock→home or drawer→home drop), swapping with
-     *  an app already there or falling back to the first free cell. Nothing is stored unless the
+    /** Places [appItem] on the home screen at a cell (a dock→home or drawer→home drop). An app in
+     *  that cell folds the two into a new folder named [folderName] and a folder there takes the
+     *  icon in — what a drop between two home icons does — an icon already on home leaving its old
+     *  cell for it. Anything else under the finger (a shortcut, a widget, a builtin) swaps with an
+     *  icon already on home or sends a new one to the first free cell. Nothing is stored unless the
      *  result is [PlaceResult.Placed]. */
-    suspend fun placeAt(appItem: AppItem, page: Int, cellX: Int, cellY: Int, columns: Int, rows: Int): PlaceResult =
+    suspend fun placeAt(
+        appItem: AppItem,
+        page: Int,
+        cellX: Int,
+        cellY: Int,
+        columns: Int,
+        rows: Int,
+        folderName: String,
+    ): PlaceResult =
         db.withTransaction {
             val existing = dao.getByKey(HOME, appItem.packageName, appItem.className, appItem.userSerial)
+            val occupant = if (isShownPage(page)) dao.getAt(HOME, page, cellX, cellY) else null
+            if (occupant != null && occupant.id != existing?.id) {
+                when {
+                    occupant.isApp -> {
+                        foldApps(occupant, existing, appItem, folderName)
+                        return@withTransaction PlaceResult.Placed
+                    }
+                    occupant.isFolder -> {
+                        joinFolder(occupant.id, existing, appItem)
+                        return@withTransaction PlaceResult.Placed
+                    }
+                }
+            }
             if (existing != null) {
                 return@withTransaction when {
                     !isShownPage(page) -> PlaceResult.HomeFull
@@ -255,18 +279,36 @@ class HomeLayoutRepository @Inject constructor(
             val droppedRow = dao.getByKey(HOME, dropped.packageName, dropped.className, dropped.userSerial)
                 ?: return@withTransaction -1L
             if (targetRow.id == droppedRow.id) return@withTransaction -1L
-            val page = targetRow.page
-            val cellX = targetRow.cellX
-            val cellY = targetRow.cellY
-            // Folder starts off-grid so it doesn't clash with the target cell it's about to take over.
-            val folderId = dao.insert(
-                HomeItemEntity(containerId = HOME, folderName = name, page = -1, cellX = -1, cellY = -1),
-            )
-            dao.moveById(targetRow.id, folderId, 0, 0, 0)
-            dao.moveById(droppedRow.id, folderId, 0, 1, 0)
-            dao.moveById(folderId, HOME, page, cellX, cellY)
-            folderId
+            foldApps(targetRow, droppedRow, dropped, name)
         }
+
+    /** [target]'s cell becomes a folder named [name] holding [target] first and [dropped] second —
+     *  [droppedRow], its home row, moves in; without one a new child row is made. Returns the
+     *  folder's id. */
+    private suspend fun foldApps(target: HomeItemEntity, droppedRow: HomeItemEntity?, dropped: AppItem, name: String): Long {
+        // Folder starts off-grid so it doesn't clash with the target cell it's about to take over.
+        val folderId = dao.insert(
+            HomeItemEntity(containerId = HOME, folderName = name, page = -1, cellX = -1, cellY = -1),
+        )
+        dao.moveById(target.id, folderId, 0, 0, 0)
+        if (droppedRow != null) dao.moveById(droppedRow.id, folderId, 0, 1, 0)
+        else dao.insert(homeApp(dropped, folderId, 0, 1, 0))
+        dao.moveById(folderId, HOME, target.page, target.cellX, target.cellY)
+        return folderId
+    }
+
+    /** Appends [dropped] to [folderId] after its current children — [droppedRow], its home row,
+     *  moves in; without one a new child row is made. A folder that already holds the app takes
+     *  no duplicate child (duplicate keys crash the folder grid): the home row, if any, just goes. */
+    private suspend fun joinFolder(folderId: Long, droppedRow: HomeItemEntity?, dropped: AppItem) {
+        if (dao.getByKey(folderId, dropped.packageName, dropped.className, dropped.userSerial) != null) {
+            if (droppedRow != null) dao.deleteById(droppedRow.id)
+            return
+        }
+        val order = dao.childCount(folderId)
+        if (droppedRow != null) dao.moveById(droppedRow.id, folderId, 0, order, 0)
+        else dao.insert(homeApp(dropped, folderId, 0, order, 0))
+    }
 
     /** Moves [appItem] off the home screen into [folderId], appended after its current children.
      *  If the folder already contains the app the drop merges: the direct home icon is removed
@@ -275,12 +317,7 @@ class HomeLayoutRepository @Inject constructor(
         db.withTransaction {
             val row = dao.getByKey(HOME, appItem.packageName, appItem.className, appItem.userSerial)
                 ?: return@withTransaction
-            if (dao.getByKey(folderId, appItem.packageName, appItem.className, appItem.userSerial) != null) {
-                dao.deleteById(row.id)
-                return@withTransaction
-            }
-            val order = dao.childCount(folderId)
-            dao.moveById(row.id, folderId, 0, order, 0)
+            joinFolder(folderId, row, appItem)
         }
     }
 

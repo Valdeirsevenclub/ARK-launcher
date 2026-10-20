@@ -181,7 +181,7 @@ class HomePageBoundTest {
     fun placeAt_refusesTheTrailingPageWhenHomeIsFull() = runTest {
         fillPages(MAX_PAGES)
 
-        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.HomeFull)
+        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.HomeFull)
 
         assertThat(rowOf(app("a"))).isNull()
     }
@@ -191,23 +191,25 @@ class HomePageBoundTest {
         // A drop on the pager's trailing page while there is room elsewhere lands on the first free cell.
         fillPages(MAX_PAGES, skip = setOf(4))
 
-        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.Placed)
+        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.Placed)
 
         assertThat(rowOf(app("a"))?.page).isEqualTo(4)
     }
 
     @Test
     fun placeAt_fallsBackOnlyToShownPages() = runTest {
-        fillPages(MAX_PAGES)
+        // A shortcut under the drop (an app there would fold into a folder) sends the icon looking for a free cell.
+        fillPages(MAX_PAGES, skip = setOf(0))
+        dao.insert(HomeItemEntity(packageName = "com.chat", className = "Main", shortcutId = "compose", page = 0, cellX = 0, cellY = 0))
 
-        assertThat(repo.placeAt(app("a"), 0, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.HomeFull)
+        assertThat(repo.placeAt(app("a"), 0, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.HomeFull)
 
         assertThat(rowOf(app("a"))).isNull()
     }
 
     @Test
     fun placeAt_acceptsTheLastShownPage() = runTest {
-        assertThat(repo.placeAt(app("a"), lastShown, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.Placed)
+        assertThat(repo.placeAt(app("a"), lastShown, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.Placed)
 
         assertThat(rowOf(app("a"))?.page).isEqualTo(lastShown)
     }
@@ -216,10 +218,10 @@ class HomePageBoundTest {
     fun placeAt_movesAnAppAlreadyOnHomeOnlyWithinShownPages() = runTest {
         dao.insert(HomeItemEntity(packageName = "com.a", className = "Main", page = 3, cellX = 0, cellY = 0))
 
-        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.HomeFull)
+        assertThat(repo.placeAt(app("a"), trailing, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.HomeFull)
         assertThat(rowOf(app("a"))?.page).isEqualTo(3)
 
-        assertThat(repo.placeAt(app("a"), lastShown, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.Placed)
+        assertThat(repo.placeAt(app("a"), lastShown, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.Placed)
         assertThat(rowOf(app("a"))?.page).isEqualTo(lastShown)
     }
 
@@ -228,7 +230,7 @@ class HomePageBoundTest {
         dao.insert(HomeItemEntity(packageName = "com.a", className = "Main", page = 0, cellX = 0, cellY = 0))
         dao.insert(HomeItemEntity(page = 1, cellX = 0, cellY = 0, appWidgetId = 9, widgetProvider = "p"))
 
-        assertThat(repo.placeAt(app("a"), 1, 0, 0, columns = 1, rows = 1)).isEqualTo(PlaceResult.Blocked)
+        assertThat(repo.placeAt(app("a"), 1, 0, 0, columns = 1, rows = 1, folderName = "Folder")).isEqualTo(PlaceResult.Blocked)
 
         assertThat(rowOf(app("a"))?.page).isEqualTo(0)
     }

@@ -82,7 +82,6 @@
     <string name="rename_reset">Varsayılana sıfırla</string>
     <string name="cancel">İptal</string>
     <string name="save">Kaydet</string>
-    <string name="folder_default_name">Klasör</string>
     <string name="folder_name_label">Klasör adı</string>
     <string name="folder_remove_app">Klasörden kaldır</string>
     <string name="home_options_widgets">Widget\'lar</string>

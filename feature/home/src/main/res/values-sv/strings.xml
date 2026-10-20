@@ -82,7 +82,6 @@
     <string name="rename_reset">Återställ standardnamn</string>
     <string name="cancel">Avbryt</string>
     <string name="save">Spara</string>
-    <string name="folder_default_name">Mapp</string>
     <string name="folder_name_label">Mappnamn</string>
     <string name="folder_remove_app">Ta bort från mappen</string>
     <string name="home_options_widgets">Widgetar</string>
