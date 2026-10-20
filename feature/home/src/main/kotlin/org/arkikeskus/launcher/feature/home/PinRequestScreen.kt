@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ContextWrapper
 import android.content.Intent
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -320,13 +319,7 @@ fun PinRequestScreen(
     SideEffect { if (showable) lastShown = s }
     if (s is PinRequestUiState.Finished) {
         LaunchedEffect(s) {
-            if (s.failed) Toast.makeText(context, R.string.pin_request_failed, Toast.LENGTH_SHORT).show()
-            // Said before the window goes, as Launcher3's AddItemActivity does: the user stays in
-            // the requesting app and would otherwise hear nothing of the outcome.
-            if (s.addedLabel != null) {
-                @Suppress("DEPRECATION")
-                view.announceForAccessibility(context.getString(R.string.pin_request_added, s.addedLabel))
-            }
+            announcePinOutcome(context, view, s)
             runCatching { sheetState.hide() }
             onFinish()
         }
