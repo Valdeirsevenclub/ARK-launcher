@@ -655,6 +655,41 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** A drag inside the open folder ended at a new slot: [appItem] goes just before [before]
+     *  (null = last). */
+    fun reorderInFolder(folderId: Long, appItem: AppItem, before: AppItem?) = viewModelScope.launch {
+        homeLayoutRepository.moveWithinFolder(folderId, appItem, before)
+    }
+
+    /** Cross-surface: an app dragged out of its open folder onto a home cell — placed with the same
+     *  rules as a drawer drop (an app there makes a folder named [folderName], a folder there takes
+     *  it in); a full home reports [HomeNotice.HomeFull] and leaves the app in the folder. */
+    fun moveOutOfFolder(appItem: AppItem, folderId: Long, page: Int, cellX: Int, cellY: Int, folderName: String) =
+        viewModelScope.launch {
+            val s = settingsRepository.settings.first()
+            withContext(NonCancellable) {
+                val result = homeLayoutRepository.moveOutOfFolderTo(
+                    appItem, folderId, page, cellX, cellY, s.homeColumns, s.homeRows, folderName,
+                )
+                if (result == PlaceResult.HomeFull) notify(HomeNotice.HomeFull)
+            }
+        }
+
+    /** Cross-surface: an app dragged out of its open folder into the dock — add to the dock and
+     *  delete the child row. Add-first so an interruption can only duplicate, never lose; NonCancellable
+     *  so a ViewModel clear between the halves can't strand the app on both surfaces. */
+    fun moveFolderAppToDock(appItem: AppItem, folderId: Long) = viewModelScope.launch {
+        withContext(NonCancellable) {
+            settingsRepository.addToDock(appItem.key)
+            homeLayoutRepository.removeChild(appItem, folderId)
+        }
+    }
+
+    /** An app dragged out of its open folder onto the remove pill: it leaves the home screen entirely. */
+    fun removeFromFolderEntirely(appItem: AppItem, folderId: Long) = viewModelScope.launch {
+        homeLayoutRepository.removeChild(appItem, folderId)
+    }
+
     fun renameFolder(folderId: Long, name: String) =
         viewModelScope.launch { homeLayoutRepository.renameFolder(folderId, name) }
 
