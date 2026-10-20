@@ -11,7 +11,7 @@ import androidx.compose.ui.geometry.Rect
 import org.arkikeskus.launcher.model.AppItem
 
 /** Which surface an in-progress drag was picked up from. */
-enum class DragSource { Home, Dock, Drawer }
+enum class DragSource { Home, Dock, Drawer, Folder }
 
 /**
  * Shared drag state hoisted to the launcher shell — the Compose equivalent of Launcher3's drag layer +
@@ -36,6 +36,16 @@ class HomeDragController {
      * the menu and the bar never show at the same time.
      */
     var moving by mutableStateOf(false)
+        private set
+
+    /**
+     * True once the finger has left the surface it lifted from — the drag is over the HOME screen
+     * and its drop cues (the Workspace ring and edge page flips, the dock highlight, the remove pill)
+     * may show. Home, dock and drawer drags leave with their first move ([beginMove]); a drag inside
+     * the open folder's card moves without leaving (a reorder) until it crosses the card's edge
+     * ([markLeftSource]), so nothing lights up or flips behind the card.
+     */
+    var leftSource by mutableStateOf(false)
         private set
 
     // Drop-target geometry, published by the surfaces via onGloballyPositioned.
@@ -109,6 +119,7 @@ class HomeDragController {
         source = from
         rootPosition = root
         moving = false
+        leftSource = false
         return true
     }
 
@@ -116,15 +127,26 @@ class HomeDragController {
         rootPosition = root
     }
 
-    /** The lifted icon started moving → becomes a real drag (floating icon + bar). */
-    fun beginMove() {
+    /** The lifted icon started moving → becomes a real drag (floating icon + bar). [leftSource] is
+     *  false only for a move that stays on its own surface (a reorder inside the folder card). */
+    fun beginMove(leftSource: Boolean = true) {
         moving = true
+        this.leftSource = leftSource
     }
+
+    /** The finger crossed the source surface's edge: from here on the drag is over the home screen. */
+    fun markLeftSource() {
+        leftSource = true
+    }
+
+    /** True while a drag from one of [sources] is moving over the home screen (see [leftSource]). */
+    fun isIncomingFrom(vararg sources: DragSource): Boolean = moving && leftSource && source in sources
 
     fun stop(token: Any) {
         if (owner !== token) return
         draggedApp = null
         moving = false
+        leftSource = false
         owner = null
     }
 
@@ -132,6 +154,7 @@ class HomeDragController {
     fun cancel() {
         draggedApp = null
         moving = false
+        leftSource = false
         localDragging = false
         localGestureActive = false
         owner = null
