@@ -679,8 +679,9 @@ internal fun Workspace(
     // retreat must yield to it (otherwise the page snaps back to the front under the finger — the
     // "it won't stay on the other page" bug). The in-home icon/local drags are already covered by
     // dragging/draggingLocal.
-    val crossSurfaceDrag = dragController.moving &&
-        (dragController.source == DragSource.Drawer || dragController.source == DragSource.Dock)
+    // A drag out of the open folder joins in once it has left the card (leftSource): a reorder inside
+    // the card — which sits in the edge-flip zone — must not page behind it.
+    val crossSurfaceDrag = dragController.isIncomingFrom(DragSource.Drawer, DragSource.Dock, DragSource.Folder)
 
     // Infinite scrolling (WorkspaceWrap.kt): outside a drag the trailing page shows a copy of page 0.
     // Any drag (or the widget edit frame) turns it back into the empty new page, and it stays that
@@ -840,8 +841,7 @@ internal fun Workspace(
             val p = when {
                 dragging != null && dragController.moving -> dragPos
                 draggingLocal != null && localMoving -> localDragPos
-                dragController.moving &&
-                    (dragController.source == DragSource.Drawer || dragController.source == DragSource.Dock) ->
+                dragController.isIncomingFrom(DragSource.Drawer, DragSource.Dock, DragSource.Folder) ->
                     dragController.rootPosition - dragController.gridBounds.topLeft
                 else -> null
             }
@@ -927,9 +927,7 @@ internal fun Workspace(
                                 dragging != null && dragController.moving -> {
                                     if (dragController.isOverDock(dragController.rootPosition)) null else targetCell
                                 }
-                                dragController.moving &&
-                                    (dragController.source == DragSource.Dock ||
-                                        dragController.source == DragSource.Drawer) &&
+                                dragController.isIncomingFrom(DragSource.Dock, DragSource.Drawer, DragSource.Folder) &&
                                     dragController.isOverGrid(dragController.rootPosition) -> {
                                     val (_, cx, cy) = dragController.cellAt(dragController.rootPosition)
                                     IntOffset(cx, cy)

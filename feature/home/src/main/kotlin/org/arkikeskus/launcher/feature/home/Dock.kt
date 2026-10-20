@@ -107,8 +107,7 @@ fun Dock(
     // onDragEnter/acceptDrop). derivedStateOf so we recompose only when crossing in/out, not per frame.
     val highlighted by remember {
         derivedStateOf {
-            dragController.moving &&
-                (dragController.source == DragSource.Home || dragController.source == DragSource.Drawer) &&
+            dragController.isIncomingFrom(DragSource.Home, DragSource.Drawer, DragSource.Folder) &&
                 dragController.dockHasSpace &&
                 dragController.isOverDock(dragController.rootPosition)
         }

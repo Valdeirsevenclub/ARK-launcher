@@ -103,12 +103,14 @@ class WorkspaceInfiniteScrollTest {
         assertThat(drag.currentPage).isEqualTo(homePage)
     }
 
-    /** A dock icon dragged onto the workspace and held at the right edge of the grid. The writes are
-     *  pushed out at once: the test clock alone does not deliver writes made outside a frame. */
-    private fun holdDockDragAtTheRightEdge(token: Any) {
+    /** An icon from [source] dragged onto the workspace and held at the right edge of the grid — with
+     *  [leftSource] false, one that moves without leaving its surface (a reorder inside the folder
+     *  card). The writes are pushed out at once: the test clock alone does not deliver writes made
+     *  outside a frame. */
+    private fun holdDragAtTheRightEdge(token: Any, source: DragSource = DragSource.Dock, leftSource: Boolean = true) {
         compose.runOnUiThread {
-            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), DragSource.Dock, Offset.Zero, token)
-            drag.beginMove()
+            drag.start(AppItem("p", "p.Main", Process.myUserHandle(), 0L, "App"), source, Offset.Zero, token)
+            drag.beginMove(leftSource)
             val grid = drag.gridBounds
             drag.update(Offset(grid.right - 2f, grid.center.y))
             Snapshot.sendApplyNotifications()
@@ -169,10 +171,29 @@ class WorkspaceInfiniteScrollTest {
     @Test
     fun aDockDragHeldAtTheRightEdgeOfTheLastPageStillOpensTheNewPage() {
         setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
-        holdDockDragAtTheRightEdge(Any())
+        holdDragAtTheRightEdge(Any())
         compose.mainClock.advanceTimeBy(1_500) // 550 ms dwell, then the flip
         compose.waitForIdle()
         assertThat(drag.currentPage).isEqualTo(3)
+    }
+
+    @Test
+    fun aFolderDragPastItsCardFlipsPagesLikeADockDrag() {
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        holdDragAtTheRightEdge(Any(), source = DragSource.Folder, leftSource = true)
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        assertThat(drag.currentPage).isEqualTo(3)
+    }
+
+    @Test
+    fun aReorderInsideTheFolderCardNeverFlipsThePage() {
+        // The card sits inside the edge-flip zone; a move that has not left it must not page behind it.
+        setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = false)
+        holdDragAtTheRightEdge(Any(), source = DragSource.Folder, leftSource = false)
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        assertThat(drag.currentPage).isEqualTo(2)
     }
 
     @Test
@@ -386,7 +407,7 @@ class WorkspaceInfiniteScrollTest {
         setWorkspace(pageCount = 3, homePage = 2, infiniteScroll = true)
         val token = Any()
         // A dock→home drag held at the right edge of the last page flips onto the empty new page…
-        holdDockDragAtTheRightEdge(token)
+        holdDragAtTheRightEdge(token)
         // …(550 ms dwell, then the flip animates) and ends while that flip is still running.
         compose.mainClock.advanceTimeBy(650)
         compose.runOnUiThread {

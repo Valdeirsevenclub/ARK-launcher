@@ -515,14 +515,17 @@ fun HomeScreen(
                 // All home gestures pause while the first-run intro covers the screen — this
                 // detector runs in the Initial pass on the ROOT, so it would otherwise catch a
                 // vertical swipe before the intro overlay could swallow it.
-                swipeUpForDrawer = settings.swipeUpForDrawer && !showOnboarding,
-                swipeDownForNotifications = settings.swipeDownForNotifications && !showOnboarding,
+                // Paused likewise while a folder is open: the card is composed inside this Box, so a
+                // scroll of its grid, or a vertical slip before a hold completes, would otherwise
+                // open the drawer or the shade through it.
+                swipeUpForDrawer = settings.swipeUpForDrawer && !showOnboarding && openFolderId == null,
+                swipeDownForNotifications = settings.swipeDownForNotifications && !showOnboarding && openFolderId == null,
                 dragController = dragController,
                 onDrawerDrag = onDrawerDrag,
                 onDrawerSettle = onDrawerSettle,
                 onOpenNotifications = { NotificationShade.expand(context) },
                 // Left-edge action: a right-drag on the leftmost page launches the configured app.
-                leftEdgeEnabled = leftSwipeAvailable && !showOnboarding,
+                leftEdgeEnabled = leftSwipeAvailable && !showOnboarding && openFolderId == null,
                 atLeftEdge = { dragController.currentPage == 0 },
                 onLeftEdgeAction = viewModel::onLeftSwipe,
             ),
@@ -681,6 +684,44 @@ fun HomeScreen(
             }
         }
 
+        // The open folder: a card in this window (so a drag can leave it for the home surfaces),
+        // composed before the remove pill so the pill draws over the fading card.
+        val openFolder = openFolderId?.let { id ->
+            uiState.entries.filterIsInstance<PlacedFolder>().firstOrNull { it.id == id }
+        }
+        // Close the card if the folder dissolved (dropped to one app) while it was open.
+        LaunchedEffect(openFolderId, openFolder == null) {
+            if (openFolderId != null && openFolder == null) openFolderId = null
+        }
+        if (openFolder != null) {
+            FolderCard(
+                folder = openFolder,
+                badges = badges,
+                badgeShowCount = badgeShowCount,
+                badgeScale = badgeScale,
+                locked = settings.desktopLocked,
+                dragController = dragController,
+                onRename = { viewModel.renameFolder(openFolder.id, it) },
+                onAppClick = { viewModel.launch(it) },
+                onRenameApp = { renameTarget = it },
+                onRemoveFromFolder = { viewModel.removeFromFolder(it, openFolder.id) },
+                onPinShortcut = { viewModel.pinShortcut(it) },
+                onReorder = { app, before -> viewModel.reorderInFolder(openFolder.id, app, before) },
+                onDropOnHome = { app, page, cx, cy -> viewModel.moveOutOfFolder(app, openFolder.id, page, cx, cy, defaultFolderName) },
+                onDropOnDock = { viewModel.moveFolderAppToDock(it, openFolder.id) },
+                onDropOnRemove = { viewModel.removeFromFolderEntirely(it, openFolder.id) },
+                // Whatever the drop was, a drag that left the card closed the folder.
+                onDragOutEnd = { openFolderId = null },
+                // The card would cover the picker: close it first.
+                onWidgets = if (settings.desktopLocked) null else ({ app ->
+                    openFolderId = null
+                    widgetPickerPackage = app.packageName
+                    showWidgetPicker = true
+                }),
+                onDismiss = { openFolderId = null },
+            )
+        }
+
         // Drop-to-remove zone: a "Poista" pill at the top during any removable home drag (an app, or a
         // pinned shortcut via [localDragging]); dropping an icon on it removes it from home. Turns red
         // while the dragged icon is over it. Publishes its bounds for the drag's hit-test.
@@ -689,7 +730,7 @@ fun HomeScreen(
         val overRemove by remember(dragController) {
             derivedStateOf { dragController.isOverRemove(dragController.rootPosition) }
         }
-        if ((dragController.moving && (dragController.source == DragSource.Home || dragController.source == DragSource.Dock)) || dragController.localDragging) {
+        if (dragController.isIncomingFrom(DragSource.Home, DragSource.Dock, DragSource.Folder) || dragController.localDragging) {
             Surface(
                 color = if (overRemove) Color(0xFFD32F2F) else Color.Black.copy(alpha = 0.55f),
                 shape = RoundedCornerShape(24.dp),
@@ -862,33 +903,6 @@ fun HomeScreen(
         )
     }
 
-    val openFolder = openFolderId?.let { id ->
-        uiState.entries.filterIsInstance<PlacedFolder>().firstOrNull { it.id == id }
-    }
-    // Close the sheet if the folder dissolved (dropped to one app) while it was open.
-    LaunchedEffect(openFolderId, openFolder == null) {
-        if (openFolderId != null && openFolder == null) openFolderId = null
-    }
-    if (openFolder != null) {
-        FolderSheet(
-            folder = openFolder,
-            badges = badges,
-            badgeShowCount = badgeShowCount,
-            badgeScale = badgeScale,
-            onRename = { viewModel.renameFolder(openFolder.id, it) },
-            onAppClick = { viewModel.launch(it) },
-            onRenameApp = { renameTarget = it },
-            onRemoveFromFolder = { viewModel.removeFromFolder(it, openFolder.id) },
-            onPinShortcut = { viewModel.pinShortcut(it) },
-            // The sheet is its own window and would cover the picker: close it first.
-            onWidgets = if (settings.desktopLocked) null else ({ app ->
-                openFolderId = null
-                widgetPickerPackage = app.packageName
-                showWidgetPicker = true
-            }),
-            onDismiss = { openFolderId = null },
-        )
-    }
     }
 }
 
