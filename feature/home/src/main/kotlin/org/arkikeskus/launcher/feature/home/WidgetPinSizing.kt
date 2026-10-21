@@ -37,7 +37,8 @@ internal class SystemWidgetBinder(context: Context) : WidgetBinder {
 /**
  * What the workspace's height depends on besides the screen and the grid's counts: the themed status
  * bar above it (and whether the system bar is hidden, behind it or not), the dock below it with its
- * labels' height (0 without) and, over labels, the number of its icons (0 without labels), and the
+ * labels' height (0 without), the user's icon scale (the dock's icons, and so its row, grow with it)
+ * and the number of its icons where that changes the row's height (0 where it doesn't), and the
  * page dots' row inside it (0 without dots). A cell measured with other chrome is not this home
  * screen's — unless only the dots differ, whose row is known.
  */
@@ -45,6 +46,7 @@ internal data class WorkspaceChrome(
     val dock: Boolean,
     val dockLabelsDp: Float,
     val dockIcons: Int,
+    val iconScale: Float,
     val statusBar: Boolean,
     val systemStatusBarHidden: Boolean,
     val pageDotsDp: Float,
@@ -61,9 +63,11 @@ internal fun workspaceChrome(settings: LauncherSettings, pageCount: Int, fontSca
     return WorkspaceChrome(
         dock = settings.dockEnabled,
         dockLabelsDp = dockLabelsDp,
-        // The fewer the icons the larger they are, and over labels a larger icon makes the dock taller
-        // (without labels the row's least height holds even the largest).
-        dockIcons = if (dockLabelsDp > 0f) dockIcons else 0,
+        // The fewer the icons the larger they are (up to their nominal size), and a larger icon makes
+        // the dock taller over labels, or at any scale above the default — without labels at the
+        // default scale the row's least height holds even the largest (52 + 2 × 10 = 72).
+        dockIcons = if (dockLabelsDp > 0f || settings.iconScale > 1f) dockIcons else 0,
+        iconScale = settings.iconScale,
         statusBar = settings.showStatusBar,
         // Its own setting: with the themed bar off, a shown system bar pads the workspace instead.
         systemStatusBarHidden = settings.hideSystemStatusBar,
@@ -230,11 +234,13 @@ class HomeCellSize {
         }
 
         /** What HomeScreen's column gives the dock below the workspace: its row (the icons at their
-         *  largest, a label line rounded up to whole pixels) with its padding, above the navigation bar. */
+         *  largest — their nominal size at the user's icon scale, before the slots cap them — and a
+         *  label line rounded up to whole pixels) with its padding, above the navigation bar. */
         private fun dockZoneDp(chrome: WorkspaceChrome, home: HomeWindow, onePixelDp: Float): Float {
             if (!chrome.dock) return 0f
             val labels = if (chrome.dockLabelsDp > 0f) chrome.dockLabelsDp + onePixelDp else 0f
-            val row = maxOf(DOCK_ROW_MIN_HEIGHT.value, 2 * DOCK_ROW_VERTICAL_PADDING.value + DOCK_ICON_SIZE.value + labels)
+            val icon = DOCK_ICON_SIZE.value * chrome.iconScale
+            val row = maxOf(DOCK_ROW_MIN_HEIGHT.value, 2 * DOCK_ROW_VERTICAL_PADDING.value + icon + labels)
             return home.navigationBarDp + 2 * DOCK_OUTER_PADDING.value + row
         }
 

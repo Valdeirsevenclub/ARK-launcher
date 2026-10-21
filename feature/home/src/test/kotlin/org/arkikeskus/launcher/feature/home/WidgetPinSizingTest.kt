@@ -205,6 +205,41 @@ class WidgetPinSizingTest {
         assertThat(cellSize.cellFor(4, 6, chrome = chrome(dock = false))).isNotNull()
     }
 
+    /** The icon size changed in Settings while the home screen stayed in the background: the dock's
+     *  icons, and with them the dock, are taller or shorter now than when the grid was measured, so
+     *  that cell is not used. */
+    @Test fun aCellMeasuredAtAnotherIconScaleIsNotUsed() {
+        val cellSize = HomeCellSize().apply { publish(100f, 100f, columns = 4, rows = 6, chrome = chromeOf(LauncherSettings(iconScale = 1f))) }
+
+        assertThat(cellSize.cellFor(4, 6, chrome = chromeOf(LauncherSettings(iconScale = 1.3f)))).isNull()
+        assertThat(cellSize.cellFor(4, 6, chrome = chromeOf(LauncherSettings(iconScale = 1f)))).isNotNull()
+    }
+
+    /** Without labels the dock row's least height (72 dp) holds the icons at their largest (52 + 2 × 10)
+     *  however few there are — at the default scale. Enlarged, fewer (so larger) icons make the dock
+     *  taller again, and the count is part of the chrome. */
+    @Test fun withoutLabelsTheDockIconCountMattersOnlyForEnlargedIcons() {
+        val noLabels = LauncherSettings(showDockLabels = false)
+        assertThat(workspaceChrome(noLabels, 1, 1f, dockIcons = 2)).isEqualTo(workspaceChrome(noLabels, 1, 1f, dockIcons = 5))
+
+        val enlarged = noLabels.copy(iconScale = 1.3f)
+        assertThat(workspaceChrome(enlarged, 1, 1f, dockIcons = 2)).isNotEqualTo(workspaceChrome(enlarged, 1, 1f, dockIcons = 5))
+    }
+
+    /** The dock's icons follow the user's icon-size setting (until their slots cap them), and the dock
+     *  grows with them: the estimate counts them at their largest at that scale, so its cells come out
+     *  no taller than the workspace's. At 130 % a 52 dp icon is 67.6 dp, and the unlabelled row grows
+     *  from its least 72 dp to 20 + 67.6 — the grid loses that over its rows. No dock, no difference. */
+    @Test fun theEstimateCountsTheDocksIconsAtTheUsersIconScale() {
+        val plain = estimateOf(LauncherSettings(homeColumns = 4, homeRows = 6, showDockLabels = false))
+        val large = estimateOf(LauncherSettings(homeColumns = 4, homeRows = 6, showDockLabels = false, iconScale = 1.3f))
+        assertThat(large.heightDp).isWithin(0.01f).of(plain.heightDp - (20f + 52f * 1.3f - 72f) / 6)
+
+        val noDockPlain = estimateOf(LauncherSettings(homeColumns = 4, homeRows = 6, dockEnabled = false))
+        val noDockLarge = estimateOf(LauncherSettings(homeColumns = 4, homeRows = 6, dockEnabled = false, iconScale = 1.3f))
+        assertThat(noDockLarge.heightDp).isWithin(0.01f).of(noDockPlain.heightDp)
+    }
+
     /** The page dots' row (8 dp above and below the ringed home dot's 9) is the only difference a
      *  second page makes: the measured grid stands, less that row — or plus it, the other way. */
     @Test fun aCellMeasuredWithoutThePageDotsServesTheGridWithThemLessTheirRow() {
