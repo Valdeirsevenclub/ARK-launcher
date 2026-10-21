@@ -227,6 +227,33 @@ class FolderCardTest {
         assertNothingDropped()
     }
 
+    /** Compose's drag() hands a gesture over to another pressed finger when the tracked one lifts.
+     *  The folder follows the lifting finger alone: when it rises the lift ends (a still hold, so the
+     *  menu), and the finger still resting in the grid moves nothing and drops nothing. */
+    @Test fun theLiftEndsWhenTheLiftingFingerRisesWhileASecondFingerRests() {
+        show()
+        homeBelowTheCard()
+
+        hold("Mail")
+        compose.onNodeWithText("Maps").performTouchInput { down(1, center) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Mail").performTouchInput { up(0) }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("App info").assertIsDisplayed()
+        assertThat(drag.isDragging).isFalse()
+
+        compose.onNodeWithText("Maps").performTouchInput { moveTo(1, center + Offset(0f, 400f)) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Maps").performTouchInput { up(1) }
+        compose.waitForIdle()
+
+        assertThat(drag.isDragging).isFalse()
+        assertNothingDropped()
+        assertThat(launched).isEmpty()
+        assertThat(dragOutEnds).isEqualTo(0)
+    }
+
     @Test fun theSemanticsClickLaunchesWithoutThePointerGesture() {
         show()
 
@@ -546,6 +573,8 @@ class FolderCardTest {
         release("Mail")
 
         assertNothingDropped()
+        compose.onNodeWithText("App info").assertDoesNotExist()
+        assertThat(launched).isEmpty()
         assertThat(dragOutEnds).isEqualTo(1)
         assertThat(drag.isDragging).isFalse()
     }

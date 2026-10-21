@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -44,8 +43,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -263,9 +265,9 @@ internal fun FolderCard(
                                 lifted = true
                                 val dragStartPx = IconPress.DragStartThreshold.toPx()
                                 try {
-                                    val completed = drag(down.id) { change ->
+                                    val completed = dragPointer(down.id) { change ->
                                         change.consume()
-                                        if (!dragController.owns(token)) return@drag
+                                        if (!dragController.owns(token)) return@dragPointer
                                         // A still long-press (with finger jitter) keeps showing the
                                         // menu on release; only a pull past the threshold moves.
                                         if (!dragController.moving &&
@@ -275,7 +277,7 @@ internal fun FolderCard(
                                             // the home screen: nothing lights up behind the card.
                                             dragController.beginMove(leftSource = false)
                                         }
-                                        if (!dragController.moving) return@drag
+                                        if (!dragController.moving) return@dragPointer
                                         val root = coords.localToRoot(change.position)
                                         dragController.update(root)
                                         // Past the card's edge the drag is over the home screen:
@@ -429,6 +431,24 @@ internal fun folderSlotIndex(
     val col = (local.x / slotWidth).toInt().coerceIn(0, columns - 1)
     val row = ((local.y + scrollOffsetPx) / rowHeightPx.coerceAtLeast(1f)).toInt().coerceAtLeast(0)
     return (row * columns + col).coerceIn(0, (count - 1).coerceAtLeast(0))
+}
+
+/**
+ * The move phase of a lifted icon: [onDrag] for every move of the pointer [pointerId], until it
+ * rises (true) or something consumes it (false — the HOME key, a cancel). Unlike Compose's drag(),
+ * this never hands the gesture over to another finger resting in the grid when the tracked one
+ * lifts: that finger could otherwise carry on moving the first finger's app, and drop it.
+ */
+private suspend fun AwaitPointerEventScope.dragPointer(
+    pointerId: PointerId,
+    onDrag: (PointerInputChange) -> Unit,
+): Boolean {
+    while (true) {
+        val change = awaitPointerEvent().changes.firstOrNull { it.id == pointerId } ?: return false
+        if (change.isConsumed) return false
+        if (change.changedToUpIgnoreConsumed()) return true
+        if (change.positionChangedIgnoreConsumed()) onDrag(change)
+    }
 }
 
 /**
