@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -180,7 +181,14 @@ internal fun FolderCard(
             .testTag("folderScrim")
             .graphicsLayer { alpha = dragOutAlpha.value }
             .background(Color.Black.copy(alpha = 0.5f))
-            // The scrim swallows every touch under it: nothing reaches the home grid behind.
+            // The scrim swallows every touch under it: nothing reaches the home grid behind. For
+            // accessibility services it is a pane named after the folder (announced as it opens,
+            // dismissable): a node that matters covers the home nodes under it, so a swipe through
+            // the screen cannot reach a home icon, a widget or the dock while the folder is open.
+            .semantics {
+                paneTitle = folder.name
+                dismiss { currentOnDismiss(); true }
+            }
             .pointerInput(Unit) { detectTapGestures { currentOnDismiss() } },
         contentAlignment = Alignment.Center,
     ) {
@@ -192,7 +200,6 @@ internal fun FolderCard(
                 .widthIn(max = 360.dp)
                 .fillMaxWidth()
                 .testTag("folderCard")
-                .semantics { dismiss { currentOnDismiss(); true } }
                 // A tap in the card's own padding closes nothing (and the consumed release keeps
                 // the scrim's tap from firing for a press that began inside the card).
                 .pointerInput(Unit) { detectTapGestures { } }

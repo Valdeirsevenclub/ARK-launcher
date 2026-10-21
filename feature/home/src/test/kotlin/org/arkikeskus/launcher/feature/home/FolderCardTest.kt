@@ -2,10 +2,15 @@ package org.arkikeskus.launcher.feature.home
 
 import android.app.Application
 import android.os.Process
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityManager
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -13,12 +18,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.down
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -37,7 +45,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * The open folder as a card in the home window. A tap launches and closes; a still long-press lifts
@@ -68,6 +78,7 @@ class FolderCardTest {
     private val removeDrops = mutableListOf<AppItem>()
     private var dragOutEnds = 0
     private var dismissed = 0
+    private var behindClicks = 0
     private lateinit var backDispatcher: OnBackPressedDispatcher
     private var longPress = 0L
 
@@ -77,6 +88,8 @@ class FolderCardTest {
             longPress = LocalViewConfiguration.current.longPressTimeoutMillis
             LauncherTheme {
                 Box(Modifier.fillMaxSize()) {
+                    // A home icon's stand-in behind the card, in the corner the scrim covers.
+                    Text("Behind", Modifier.clickable { behindClicks++ })
                     FolderCard(
                         folder = folderState,
                         badges = emptyMap(),
@@ -239,6 +252,48 @@ class FolderCardTest {
 
         compose.onNodeWithText("Mail").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick))
         compose.onNodeWithText("Mail").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
+    }
+
+    private fun composeView(): ViewRootForTest {
+        fun find(view: View): ViewRootForTest? = when (view) {
+            is ViewRootForTest -> view
+            is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { find(view.getChildAt(it)) }
+            else -> null
+        }
+        return checkNotNull(find((compose as AndroidComposeTestRule<*, *>).activity.window.decorView))
+    }
+
+    /** The home screen behind the open folder is out of reach for accessibility services too: the
+     *  scrim covers it as a pane named after the folder (announced when it opens, dismissable), so a
+     *  swipe through the nodes cannot land on a home icon, a widget or the dock behind the card and a
+     *  double-tap there cannot fire. The folder's own apps stay reachable. */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // the platform delegate finds its nodes with Region
+    fun theHomeScreenBehindTheCardIsHiddenFromAccessibilityServices() {
+        show()
+        compose.runOnUiThread {
+            shadowOf(RuntimeEnvironment.getApplication().getSystemService(AccessibilityManager::class.java)).setEnabled(true)
+            composeView().forceAccessibilityForTesting(true)
+        }
+        val behind = compose.onNodeWithText("Behind").fetchSemanticsNode().id
+        val maps = compose.onNodeWithText("Maps").fetchSemanticsNode().id
+
+        compose.runOnIdle {
+            val provider = composeView().view.accessibilityNodeProvider
+            assertThat(provider.createAccessibilityNodeInfo(behind)).isNull()
+            assertThat(provider.createAccessibilityNodeInfo(maps)).isNotNull()
+        }
+        compose.onNodeWithTag("folderScrim").assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Tools"))
+        compose.onNodeWithTag("folderScrim").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss))
+    }
+
+    @Test fun theSemanticsDismissOnTheScrimCloses() {
+        show()
+
+        compose.onNodeWithTag("folderScrim").performSemanticsAction(SemanticsActions.Dismiss)
+        compose.waitForIdle()
+
+        assertThat(dismissed).isEqualTo(1)
     }
 
     // --- reorder inside the card ---
