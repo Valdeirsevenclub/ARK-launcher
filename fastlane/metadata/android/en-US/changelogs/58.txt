@@ -1,0 +1,6 @@
+Added
+- Long-press delay setting (Gestures): how long to hold an icon before its menu opens or it can be moved, as a multiple of the system delay.
+- The size sliders (icon, label text, notification badge) show their value as a percent, move in 5 % steps with a tick, and offer a Default button.
+
+Fixed
+- A backup restored on an older version no longer crashes the launcher after an update.
