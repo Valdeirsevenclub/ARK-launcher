@@ -242,6 +242,13 @@ internal fun FolderCard(
                     val coords = gridCoords ?: return null
                     return gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.rootBounds(coords)
                 }
+                // The preview reorders the items by key, and the grid anchors its scroll position to
+                // the first visible item's KEY: the lifted icon leaving the top row for a lower one
+                // would scroll the grid a row under a finger that has not moved — and the next read
+                // would put the icon a row lower again. Before every change to the shown order the
+                // position is kept by INDEX instead (applied at the same remeasure as the new order).
+                fun keepScrollPositionByIndex() =
+                    gridState.requestScrollToItem(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
 
                 Box(
                     modifier = Modifier
@@ -299,6 +306,7 @@ internal fun FolderCard(
                                         if (!dragController.leftSource && !cardBounds.contains(root)) {
                                             dragController.markLeftSource()
                                             dragOut = true
+                                            keepScrollPositionByIndex()
                                             targetIndex = null
                                         }
                                         if (!dragController.leftSource) {
@@ -307,6 +315,7 @@ internal fun FolderCard(
                                                 rowBands(gridState.layoutInfo.visibleItemsInfo), currentShownBase.size,
                                             )
                                             if (index != targetIndex) {
+                                                keepScrollPositionByIndex()
                                                 targetIndex = index
                                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             }
@@ -345,6 +354,8 @@ internal fun FolderCard(
                                         }
                                     }
                                 } finally {
+                                    // The shown order may revert here (a cancelled lift): same rule.
+                                    keepScrollPositionByIndex()
                                     dragController.stop(token)
                                     lifted = false
                                     targetIndex = null

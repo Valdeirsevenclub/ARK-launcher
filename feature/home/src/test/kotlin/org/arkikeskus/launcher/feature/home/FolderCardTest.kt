@@ -26,12 +26,14 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.down
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.up
@@ -441,6 +443,29 @@ class FolderCardTest {
         assertThat(rootCenter("a1").y).isEqualTo(a1.y)
         compose.onNodeWithText("a24").assertDoesNotExist()
         release("a5")
+    }
+
+    /** A long folder scrolled down, its first visible icon lifted and dragged to a lower row: the
+     *  preview moves that icon's key down the list, and the grid — which anchors its scroll position to
+     *  the first visible item's KEY — would follow it by a row under a finger that has not moved, and
+     *  read the slot a row lower again. The grid keeps its position by index while the preview changes. */
+    @Test fun aLiftedFirstVisibleIconDraggedDownDoesNotScrollTheGridUnderTheFinger() {
+        val apps = (1..24).map { AppItem("com.a$it", "Main", user, 0L, "a$it") }
+        folderState = folderState.copy(apps = apps)
+        show()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(8)
+        compose.waitForIdle()
+        val a9 = rootCenter("a9")
+        val a13 = rootCenter("a13")
+
+        hold("a9")
+        moveTo(a13)
+        moveTo(a13 + Offset(0f, 1f))
+        // a10 took the lifted icon's slot; the rows themselves did not move.
+        assertThat(rootCenter("a10")).isEqualTo(a9)
+        release("a9")
+
+        assertThat(reorders).containsExactly(apps[8] to apps[13])
     }
 
     /** Rows are not all the same height when a name wraps to a second line, and the first visible
