@@ -96,6 +96,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setDesktopLocked(value: Boolean) = update { repository.setDesktopLocked(value) }
     fun setDoubleTapToLock(value: Boolean) = update { repository.setDoubleTapToLock(value) }
+    fun setLongPressScale(value: Float) = update { repository.setLongPressScale(value) }
 
     fun setAppLabelTextScale(value: Float) = update { repository.setAppLabelTextScale(value) }
     fun setIconScale(value: Float) = update { repository.setIconScale(value) }

@@ -62,7 +62,9 @@ fun LauncherShell(
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val iconStyle by hiltViewModel<LauncherShellViewModel>().iconStyle.collectAsStateWithLifecycle()
+    val shellViewModel = hiltViewModel<LauncherShellViewModel>()
+    val iconStyle by shellViewModel.iconStyle.collectAsStateWithLifecycle()
+    val longPressScale by shellViewModel.longPressScale.collectAsStateWithLifecycle()
     // Bounds keep a high-initial-velocity settle (the fling-carried spring below) from overshooting
     // past the ends — an overshoot past 1 would briefly translate the drawer above the screen top.
     val progress = remember { Animatable(0f).apply { updateBounds(0f, 1f) } }
@@ -145,101 +147,105 @@ fun LauncherShell(
         homeSignals.collect { animateProgress(0f) }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .onSizeChanged { shellHeightPx = it.height.toFloat().coerceAtLeast(1f) }
-            .onGloballyPositioned { shellOrigin = it.positionInRoot() },
-    ) {
-        HomeScreen(
-            onOpenDrawer = { animateProgress(1f) },
-            onDrawerDrag = { dragDrawer(it) },
-            onDrawerSettle = { settleDrawer(it) },
-            onOpenSettings = onOpenSettings,
-            homeSignals = homeSignals,
-            drawerOpen = drawerOpen,
-            dragController = dragController,
-            showWidgetsFor = showWidgetsFor,
-            onShowWidgetsHandled = { showWidgetsFor = null },
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        // Always compose AppDrawerScreen at fillMaxSize to keep it pre-composed, pre-measured, and pre-laid out.
-        // When closed, it is translated completely off-screen (translationY = size.height).
-        // Compose's pointer input system respects the graphicsLayer transform, so it will not block pointer events for the HomeScreen.
-        AppDrawerScreen(
-            onClose = { animateProgress(0f) },
-            onDrawerDrag = { dragDrawer(it) },
-            onDrawerSettle = { settleDrawer(it) },
-            onOpenSettings = {
-                animateProgress(0f)
-                onOpenSettings()
-            },
-            onShowWidgets = { app ->
-                animateProgress(0f)
-                showWidgetsFor = app.packageName
-            },
-            dragController = dragController,
-            homeSignals = homeSignals,
-            // "In use" rather than raw openness: a drag-out snaps progress to 0 mid-gesture, and the
-            // scroll-to-top reset must NOT fire then — it could dispose the dragged item's node and kill
-            // the in-flight gesture. It runs when the drag completes (this flips false), drawer hidden.
-            drawerOpen = drawerOpen || draggingFromDrawer,
-            // First movement of a drag-out reveals home/dock to drop onto. The drawer is hidden
-            // with alpha rather than translated, so its (still-mounted) gesture keeps reporting
-            // accurate local coordinates; progress is snapped shut so it's closed after the drop.
-            onDragOutStart = {
-                isDraggingDrawer = false
-                scope.launch { progress.snapTo(0f) }
-            },
-            modifier = Modifier
+    // The long-press delay setting wraps the whole shell: the home screen, the dock, folders, the
+    // drawer and widgets all read their hold timeout from LocalViewConfiguration.
+    LongPressDelay(longPressScale) {
+        Box(
+            modifier = modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    if (draggingFromDrawer) {
-                        alpha = dragOutAlpha.value
-                    } else {
-                        val ty = (1f - currentProgress) * size.height
-                        translationY = ty
-                    }
-                },
-        )
+                .onSizeChanged { shellHeightPx = it.height.toFloat().coerceAtLeast(1f) }
+                .onGloballyPositioned { shellOrigin = it.positionInRoot() },
+        ) {
+            HomeScreen(
+                onOpenDrawer = { animateProgress(1f) },
+                onDrawerDrag = { dragDrawer(it) },
+                onDrawerSettle = { settleDrawer(it) },
+                onOpenSettings = onOpenSettings,
+                homeSignals = homeSignals,
+                drawerOpen = drawerOpen,
+                dragController = dragController,
+                showWidgetsFor = showWidgetsFor,
+                onShowWidgetsHandled = { showWidgetsFor = null },
+                modifier = Modifier.fillMaxSize(),
+            )
 
-        // Single floating icon for any in-progress drag (home, dock or drawer), drawn above every
-        // surface so it can travel between them. Positioned by the finger's root coords.
-        val dragged = dragController.draggedApp
-        if (dragged != null && dragController.moving) {
-            // The floating icon follows the user's icon-size setting like the surfaces it travels between.
-            val sizeDp = 56.dp * iconStyle.iconScale
-            val halfPx = with(density) { (sizeDp / 2).toPx() }
-            Box(
+            // Always compose AppDrawerScreen at fillMaxSize to keep it pre-composed, pre-measured, and pre-laid out.
+            // When closed, it is translated completely off-screen (translationY = size.height).
+            // Compose's pointer input system respects the graphicsLayer transform, so it will not block pointer events for the HomeScreen.
+            AppDrawerScreen(
+                onClose = { animateProgress(0f) },
+                onDrawerDrag = { dragDrawer(it) },
+                onDrawerSettle = { settleDrawer(it) },
+                onOpenSettings = {
+                    animateProgress(0f)
+                    onOpenSettings()
+                },
+                onShowWidgets = { app ->
+                    animateProgress(0f)
+                    showWidgetsFor = app.packageName
+                },
+                dragController = dragController,
+                homeSignals = homeSignals,
+                // "In use" rather than raw openness: a drag-out snaps progress to 0 mid-gesture, and the
+                // scroll-to-top reset must NOT fire then — it could dispose the dragged item's node and kill
+                // the in-flight gesture. It runs when the drag completes (this flips false), drawer hidden.
+                drawerOpen = drawerOpen || draggingFromDrawer,
+                // First movement of a drag-out reveals home/dock to drop onto. The drawer is hidden
+                // with alpha rather than translated, so its (still-mounted) gesture keeps reporting
+                // accurate local coordinates; progress is snapped shut so it's closed after the drop.
+                onDragOutStart = {
+                    isDraggingDrawer = false
+                    scope.launch { progress.snapTo(0f) }
+                },
                 modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            (dragController.rootPosition.x - shellOrigin.x - halfPx).roundToInt(),
-                            (dragController.rootPosition.y - shellOrigin.y - halfPx).roundToInt(),
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (draggingFromDrawer) {
+                            alpha = dragOutAlpha.value
+                        } else {
+                            val ty = (1f - currentProgress) * size.height
+                            translationY = ty
+                        }
+                    },
+            )
+
+            // Single floating icon for any in-progress drag (home, dock or drawer), drawn above every
+            // surface so it can travel between them. Positioned by the finger's root coords.
+            val dragged = dragController.draggedApp
+            if (dragged != null && dragController.moving) {
+                // The floating icon follows the user's icon-size setting like the surfaces it travels between.
+                val sizeDp = 56.dp * iconStyle.iconScale
+                val halfPx = with(density) { (sizeDp / 2).toPx() }
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (dragController.rootPosition.x - shellOrigin.x - halfPx).roundToInt(),
+                                (dragController.rootPosition.y - shellOrigin.y - halfPx).roundToInt(),
+                            )
+                        }
+                        .size(sizeDp)
+                        .graphicsLayer {
+                            alpha = 0.92f
+                            scaleX = 1.1f
+                            scaleY = 1.1f
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Match the surfaces' icon style (the floating icon is a sibling of Home/Drawer, outside
+                    // their CompositionLocal scopes, so without this it reverts to the plain system icon).
+                    CompositionLocalProvider(
+                        LocalIconPack provides iconStyle.iconPack,
+                        LocalThemedIcons provides iconStyle.themed,
+                        LocalIconScale provides iconStyle.iconScale,
+                    ) {
+                        AppIcon(
+                            appItem = dragged,
+                            labelColor = Color.White,
+                            showLabel = false,
+                            iconSize = 52.dp * iconStyle.iconScale,
                         )
                     }
-                    .size(sizeDp)
-                    .graphicsLayer {
-                        alpha = 0.92f
-                        scaleX = 1.1f
-                        scaleY = 1.1f
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                // Match the surfaces' icon style (the floating icon is a sibling of Home/Drawer, outside
-                // their CompositionLocal scopes, so without this it reverts to the plain system icon).
-                CompositionLocalProvider(
-                    LocalIconPack provides iconStyle.iconPack,
-                    LocalThemedIcons provides iconStyle.themed,
-                    LocalIconScale provides iconStyle.iconScale,
-                ) {
-                    AppIcon(
-                        appItem = dragged,
-                        labelColor = Color.White,
-                        showLabel = false,
-                        iconSize = 52.dp * iconStyle.iconScale,
-                    )
                 }
             }
         }

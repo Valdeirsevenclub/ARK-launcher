@@ -51,6 +51,9 @@ data class LauncherSettings(
     /** Size multiplier for app icons across home/dock/drawer/folders (1.0 = each surface's nominal size;
      *  the cell still caps the result). */
     val iconScale: Float = 1.0f,
+    /** Multiplier on the system long-press timeout before an icon's menu opens or it can be moved
+     *  (1.0 = the system's own delay, 0.5–2.0). */
+    val longPressScale: Float = 1.0f,
     /** Let home-screen labels (apps, folders, shortcuts) wrap onto a second line. Off keeps the
      *  single line the home grid has always had; the dock stays single-line either way. */
     val twoLineHomeLabels: Boolean = false,

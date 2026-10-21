@@ -68,7 +68,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -77,6 +79,7 @@ import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.model.LauncherSettings
 import org.arkikeskus.launcher.ui.DefaultLauncher
 import org.arkikeskus.launcher.ui.LauncherIcons
+import org.arkikeskus.launcher.ui.LongPressScale
 import org.arkikeskus.launcher.ui.component.AppIcon
 import org.arkikeskus.launcher.ui.component.LocalIconPack
 import org.arkikeskus.launcher.ui.component.LocalThemedIcons
@@ -100,6 +103,9 @@ fun SettingsScreen(
     val hiddenKeys by viewModel.hiddenKeys.collectAsStateWithLifecycle()
     val iconPacks by viewModel.iconPacks.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = context.resources
+    // Size multipliers read as whole percents, so 100 is the default and the number is easy to come back to.
+    val percentText: (Float) -> String = { resources.getString(R.string.settings_percent, scalePercent(it)) }
     val previewIcon = rememberLauncherIconBitmap()
     var showHiddenManager by remember { mutableStateOf(false) }
     var showLeftSwipePicker by remember { mutableStateOf(false) }
@@ -188,6 +194,18 @@ fun SettingsScreen(
                     description = leftSwipeLabel,
                 ) { showLeftSwipePicker = true }
                 DoubleTapLockToggle(enabled = s.doubleTapToLock, onSetEnabled = viewModel::setDoubleTapToLock)
+                // Read out in milliseconds of this phone's own long-press timeout times the setting, so the
+                // number is the real wait here and the default chip names it.
+                val systemLongPress = LocalViewConfiguration.current.longPressTimeoutMillis
+                ScaleSliderRow(
+                    label = stringResource(R.string.settings_long_press_delay),
+                    description = stringResource(R.string.settings_long_press_delay_desc),
+                    value = s.longPressScale,
+                    onValueChange = viewModel::setLongPressScale,
+                    valueRange = LongPressScale.MIN..LongPressScale.MAX,
+                    step = 0.1f,
+                    valueText = { resources.getString(R.string.settings_millis, (systemLongPress * it).roundToInt()) },
+                )
 
                 ExpressiveSectionTitle(stringResource(R.string.settings_dock))
                 SwitchRow(stringResource(R.string.settings_dock_show), s.dockEnabled, viewModel::setDockEnabled)
@@ -303,17 +321,19 @@ fun SettingsScreen(
                 }
 
                 ExpressiveSectionTitle(stringResource(R.string.settings_icons))
-                SliderRow(
+                ScaleSliderRow(
                     label = stringResource(R.string.settings_label_size),
                     value = s.appLabelTextScale,
                     onValueChange = viewModel::setAppLabelTextScale,
                     valueRange = 0.8f..1.6f,
+                    valueText = percentText,
                 )
-                SliderRow(
+                ScaleSliderRow(
                     label = stringResource(R.string.settings_icon_size),
                     value = s.iconScale,
                     onValueChange = viewModel::setIconScale,
                     valueRange = 0.8f..1.3f,
+                    valueText = percentText,
                 )
                 LabelColorRow(selected = s.appLabelColor, onPick = viewModel::setAppLabelColor)
                 // Themed (monochrome) icons need the adaptive-icon monochrome API (Android 13+).
@@ -334,11 +354,12 @@ fun SettingsScreen(
                 ExpressiveSectionTitle(stringResource(R.string.settings_notifications))
                 SwitchRow(stringResource(R.string.settings_notif_dots), s.showNotificationDots, viewModel::setShowNotificationDots)
                 SwitchRow(stringResource(R.string.settings_notif_count), s.notificationDotCount, viewModel::setNotificationDotCount)
-                SliderRow(
+                ScaleSliderRow(
                     label = stringResource(R.string.settings_notif_size),
                     value = s.notificationDotScale,
                     onValueChange = viewModel::setNotificationDotScale,
                     valueRange = 0.6f..1.8f,
+                    valueText = percentText,
                 )
                 BadgePreview(
                     icon = previewIcon,

@@ -87,6 +87,7 @@ class SettingsRepository @Inject constructor(
             drawerOpensAtTop = p[Keys.DRAWER_OPENS_AT_TOP] ?: true,
             appLabelTextScale = (p[Keys.APP_LABEL_SCALE] ?: 1.0f).coerceIn(MIN_LABEL_SCALE, MAX_LABEL_SCALE),
             iconScale = (p[Keys.ICON_SCALE] ?: 1.0f).coerceIn(MIN_ICON_SCALE, MAX_ICON_SCALE),
+            longPressScale = (p[Keys.LONG_PRESS_SCALE] ?: 1.0f).coerceIn(MIN_LONG_PRESS_SCALE, MAX_LONG_PRESS_SCALE),
             twoLineHomeLabels = p[Keys.TWO_LINE_HOME_LABELS] ?: false,
             twoLineDrawerLabels = p[Keys.TWO_LINE_DRAWER_LABELS] ?: true,
             appLabelColor = p[Keys.APP_LABEL_COLOR] ?: 0xFFFFFFFF.toInt(),
@@ -359,6 +360,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setIconScale(value: Float) =
         edit { it[Keys.ICON_SCALE] = value.coerceIn(MIN_ICON_SCALE, MAX_ICON_SCALE) }
 
+    /** Multiplier on the system long-press timeout (clamped to the slider's range). */
+    suspend fun setLongPressScale(value: Float) =
+        edit { it[Keys.LONG_PRESS_SCALE] = value.coerceIn(MIN_LONG_PRESS_SCALE, MAX_LONG_PRESS_SCALE) }
+
     /** ARGB color for the home-surface app icon labels. */
     suspend fun setAppLabelColor(argb: Int) = edit { it[Keys.APP_LABEL_COLOR] = argb }
 
@@ -608,6 +613,7 @@ class SettingsRepository @Inject constructor(
         val LOCAL_LAST_BACKUP = longPreferencesKey("local_last_backup_time")
         val APP_LABEL_SCALE = floatPreferencesKey("app_label_scale")
         val ICON_SCALE = floatPreferencesKey("icon_scale")
+        val LONG_PRESS_SCALE = floatPreferencesKey("long_press_scale")
         val APP_LABEL_COLOR = intPreferencesKey("app_label_color")
         val TWO_LINE_HOME_LABELS = booleanPreferencesKey("two_line_home_labels")
         val TWO_LINE_DRAWER_LABELS = booleanPreferencesKey("two_line_drawer_labels")
@@ -652,8 +658,14 @@ class SettingsRepository @Inject constructor(
         const val MIN_ICON_SCALE = 0.8f
         const val MAX_ICON_SCALE = 1.3f
 
+        /** Valid range for the long-press delay slider (a multiplier on the system timeout). */
+        const val MIN_LONG_PRESS_SCALE = 0.5f
+        const val MAX_LONG_PRESS_SCALE = 2.0f
+
         /** Preference keys whose value must be restored as Float (JSON loses the Int/Float distinction). */
-        val FLOAT_KEYS = setOf("dock_opacity", "notif_dot_scale", "app_label_scale", "icon_scale", "status_bar_scrim")
+        val FLOAT_KEYS = setOf(
+            "dock_opacity", "notif_dot_scale", "app_label_scale", "icon_scale", "status_bar_scrim", "long_press_scale",
+        )
         val INT_KEYS = setOf(
             "dock_columns", "home_columns", "home_rows", "drawer_columns", "app_label_color",
             "home_page", "home_page_count",

@@ -72,6 +72,11 @@
     <string name="settings_icon_pack_system">Domyślny systemowy</string>
     <string name="settings_label_size">Rozmiar tekstu etykiet</string>
     <string name="settings_icon_size">Rozmiar ikon</string>
+    <string name="settings_percent">%1$d%%</string>
+    <string name="settings_millis">%1$d ms</string>
+    <string name="settings_reset_default">Domyślnie %1$s</string>
+    <string name="settings_long_press_delay">Opóźnienie długiego naciśnięcia</string>
+    <string name="settings_long_press_delay_desc">Jak długo przytrzymać ikonę, zanim otworzy się jej menu lub będzie można ją przesunąć</string>
     <string name="settings_label_color">Kolor tekstu etykiet</string>
     <string name="settings_search">Wyszukiwanie</string>
     <string name="settings_search_contacts">Wyszukuj kontakty</string>

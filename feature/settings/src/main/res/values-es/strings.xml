@@ -71,6 +71,11 @@
     <string name="settings_icon_pack_system">Predeterminado del sistema</string>
     <string name="settings_label_size">Tamaño del texto</string>
     <string name="settings_icon_size">Tamaño de los iconos</string>
+    <string name="settings_percent">%1$d %%</string>
+    <string name="settings_millis">%1$d ms</string>
+    <string name="settings_reset_default">Predeterminado %1$s</string>
+    <string name="settings_long_press_delay">Retardo de la pulsación larga</string>
+    <string name="settings_long_press_delay_desc">Cuánto tiempo hay que mantener pulsado un icono antes de que se abra su menú o se pueda mover</string>
     <string name="settings_label_color">Color del texto</string>
     <string name="settings_search">Búsqueda</string>
     <string name="settings_search_contacts">Buscar contactos</string>

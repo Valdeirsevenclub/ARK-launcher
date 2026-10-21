@@ -560,4 +560,21 @@ class SettingsRepositoryTest {
         // ClassCastException on the read.
         assertThat(restored.settings.first().iconScale).isEqualTo(1.0f)
     }
+    @Test
+    fun `long-press scale clamps on write and read, survives a backup round-trip and rejects a wrong type`() = runTest {
+        val repo = newRepository()
+        assertThat(repo.settings.first().longPressScale).isEqualTo(1.0f)
+        repo.setLongPressScale(3f)
+        assertThat(repo.settings.first().longPressScale).isEqualTo(2.0f)
+        val exported = repo.exportRaw()
+        assertThat(exported).containsEntry("long_press_scale", 2.0f)
+
+        val restored = newRepository()
+        restored.importRaw(exported)
+        assertThat(restored.settings.first().longPressScale).isEqualTo(2.0f)
+        restored.importRaw(mapOf("long_press_scale" to 0.1))
+        assertThat(restored.settings.first().longPressScale).isEqualTo(0.5f) // out of range: clamped on read
+        restored.importRaw(mapOf("long_press_scale" to "slow"))
+        assertThat(restored.settings.first().longPressScale).isEqualTo(1.0f) // wrong type: dropped, no crash
+    }
 }

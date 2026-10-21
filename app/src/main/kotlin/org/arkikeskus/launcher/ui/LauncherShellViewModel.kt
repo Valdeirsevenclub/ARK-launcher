@@ -32,4 +32,9 @@ class LauncherShellViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IconStyle())
 
     val iconEpochs: StateFlow<IconEpochs> = launcherAppsSource.iconEpochs
+
+    /** The long-press delay setting, applied once at the shell root for every press site under it. */
+    val longPressScale: StateFlow<Float> = settingsRepository.settings
+        .map { it.longPressScale }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
 }
