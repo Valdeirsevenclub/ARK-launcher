@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridItemInfo
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -30,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -64,9 +64,13 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import androidx.compose.ui.unit.round
+import androidx.compose.ui.unit.toOffset
+import androidx.compose.ui.unit.toSize
 import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.ui.AppActionPopup
 import org.arkikeskus.launcher.ui.AppActions
@@ -168,8 +172,10 @@ internal fun FolderCard(
     val reordering = dragController.moving && !dragController.leftSource &&
         dragController.source == DragSource.Folder && dragged != null
     val shown = targetIndex?.takeIf { reordering }?.let { reorderedFolderApps(shownBase, dragged!!, it) } ?: shownBase
-    // Root-space bounds of each icon (by app key) and of the grid container, for the DOWN hit-test.
-    val itemBounds = remember { mutableStateMapOf<String, Rect>() }
+    // The grid container's coordinates. The icons' geometry (the DOWN hit-test, the reorder slot, the
+    // menu's anchor) comes from the grid's own layout info — one source, always current. A map of
+    // bounds the icons published kept the rectangles of icons that had left the folder or scrolled
+    // out, and a DOWN over the icon that took the slot could match the stale one first.
     var gridCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var gridWidthPx by remember { mutableIntStateOf(0) }
     // An icon is lifted: the grid stops scrolling until the gesture ends.
@@ -231,6 +237,11 @@ internal fun FolderCard(
                 // Up to four rows without scrolling when the screen allows; taller folders scroll.
                 val gridMaxHeight: Dp = min(rowHeight * 4, with(density) { windowHeightPx.toDp() } * 0.6f)
                 val gridState = rememberLazyGridState()
+                // A visible icon's root bounds, for the menu's anchor; null once it has scrolled out.
+                fun itemRootBounds(key: String): Rect? {
+                    val coords = gridCoords ?: return null
+                    return gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.rootBounds(coords)
+                }
 
                 Box(
                     modifier = Modifier
@@ -241,10 +252,12 @@ internal fun FolderCard(
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 val coords = gridCoords ?: return@awaitEachGesture
-                                val rootDown = coords.localToRoot(down.position)
-                                val hit = itemBounds.entries.firstOrNull { it.value.contains(rootDown) } ?: return@awaitEachGesture
+                                // The grid fills this container from its origin: its items' offsets
+                                // are in these coordinates.
+                                val hit = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.bounds.contains(down.position.round()) }
+                                    ?: return@awaitEachGesture
                                 val app = currentShownBase.firstOrNull { it.key == hit.key } ?: return@awaitEachGesture
-                                val itemRect = hit.value
+                                val itemRect = hit.rootBounds(coords)
                                 val outcome = awaitFolderPress(down, itemRect) { coords.localToRoot(it) }
                                 val holdPos = when (outcome) {
                                     IconPressOutcome.Tap -> {
@@ -289,12 +302,9 @@ internal fun FolderCard(
                                             targetIndex = null
                                         }
                                         if (!dragController.leftSource) {
-                                            val info = gridState.layoutInfo
-                                            val rowHeightPx = info.visibleItemsInfo.firstOrNull()?.size?.height?.toFloat() ?: 1f
-                                            val scrollOffsetPx = (gridState.firstVisibleItemIndex / FOLDER_COLUMNS) * rowHeightPx +
-                                                gridState.firstVisibleItemScrollOffset
                                             val index = folderSlotIndex(
-                                                change.position, size.width.toFloat(), rowHeightPx, scrollOffsetPx, currentShownBase.size,
+                                                change.position, size.width.toFloat(),
+                                                rowBands(gridState.layoutInfo.visibleItemsInfo), currentShownBase.size,
                                             )
                                             if (index != targetIndex) {
                                                 targetIndex = index
@@ -358,16 +368,19 @@ internal fun FolderCard(
                                 iconSize = iconSize,
                                 showLabel = true,
                                 maxLabelLines = 2,
+                                // Every slot reserves both label lines, as the home grid's do: the
+                                // rows stay one height (the one [gridMaxHeight] counts) whether or
+                                // not a name wraps, and the icons line up across rows.
+                                reserveLabelLines = true,
                                 badgeCount = badges[app.badgeKey] ?: 0,
                                 badgeShowCount = badgeShowCount,
                                 badgeScale = badgeScale,
                                 modifier = Modifier
-                                    .onGloballyPositioned { itemBounds[app.key] = it.boundsInRoot() }
                                     // The pointer gesture lives on the container; these keep the
                                     // accessibility actions a clickable icon would have had.
                                     .semantics(mergeDescendants = true) {
                                         onClick { currentOnAppClick(app); currentOnDismiss(); true }
-                                        if (!locked) onLongClick { menu = app to (itemBounds[app.key] ?: Rect.Zero); true }
+                                        if (!locked) onLongClick { menu = app to (itemRootBounds(app.key) ?: Rect.Zero); true }
                                     }
                                     .animateItem()
                                     // The moving icon's slot stays reserved and shows a faint copy —
@@ -415,21 +428,37 @@ internal fun reorderedFolderApps(apps: List<AppItem>, moving: AppItem, toIndex: 
     return rest.toMutableList().apply { add(toIndex.coerceIn(0, rest.size), moving) }
 }
 
+/** A visible item's slot in the grid's coordinates (the icon with its padding). */
+private val LazyGridItemInfo.bounds: IntRect get() = IntRect(offset, size)
+
+/** [bounds] in root coordinates, through the grid container's [coords]. */
+private fun LazyGridItemInfo.rootBounds(coords: LayoutCoordinates): Rect =
+    Rect(coords.localToRoot(offset.toOffset()), size.toSize())
+
+/** A visible row of the grid: its index and where it begins (y in the grid's coordinates). */
+internal data class RowBand(val row: Int, val top: Int)
+
+/** The rows the grid shows (from its visibleItemsInfo), top to bottom, where each really begins —
+ *  rows are not all one height when a name wraps, and the first visible row may begin above the top. */
+internal fun rowBands(items: List<LazyGridItemInfo>): List<RowBand> =
+    items.groupBy { it.row }.map { (row, inRow) -> RowBand(row, inRow.minOf { it.offset.y }) }.sortedBy { it.row }
+
 /**
- * The grid slot under a finger at [local] (the grid container's coordinates), counting the rows
- * scrolled out above ([scrollOffsetPx]); clamped to the [count] apps the folder shows.
+ * The grid slot under a finger at [local] (the grid container's coordinates): the column from x, the
+ * row the last of the visible [rows] that begins above the finger — so a finger below the last row
+ * targets that row, one above the first the first; clamped to the [count] apps the folder shows.
  */
 internal fun folderSlotIndex(
     local: Offset,
     gridWidthPx: Float,
-    rowHeightPx: Float,
-    scrollOffsetPx: Float,
+    rows: List<RowBand>,
     count: Int,
     columns: Int = FOLDER_COLUMNS,
 ): Int {
+    if (rows.isEmpty()) return 0
     val slotWidth = (gridWidthPx / columns).coerceAtLeast(1f)
     val col = (local.x / slotWidth).toInt().coerceIn(0, columns - 1)
-    val row = ((local.y + scrollOffsetPx) / rowHeightPx.coerceAtLeast(1f)).toInt().coerceAtLeast(0)
+    val row = (rows.lastOrNull { it.top <= local.y } ?: rows.first()).row
     return (row * columns + col).coerceIn(0, (count - 1).coerceAtLeast(0))
 }
 

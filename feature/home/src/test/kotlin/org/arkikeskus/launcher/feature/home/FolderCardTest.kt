@@ -144,6 +144,30 @@ class FolderCardTest {
         assertThat(dismissed).isEqualTo(1)
     }
 
+    /** An app left the open folder (the menu's "Remove from folder", an uninstall) and the next one
+     *  slid into its slot: the DOWN hit-test must find the app that is there now, not the one that
+     *  was — a stale rectangle made the slot dead to taps and holds until the folder was reopened. */
+    @Test fun anAppThatSlidIntoARemovedAppsSlotAnswersTapsAndHolds() {
+        show()
+        val slot = rootCenter("Maps")
+
+        compose.runOnIdle { folderState = folderState.copy(apps = listOf(mail, notes)) }
+        compose.waitForIdle()
+        assertThat(rootCenter("Notes")).isEqualTo(slot)
+
+        compose.onRoot().performTouchInput { click(slot) }
+        compose.waitForIdle()
+        assertThat(launched).containsExactly(notes)
+
+        compose.onRoot().performTouchInput { down(slot) }
+        compose.mainClock.advanceTimeBy(longPress + 50)
+        compose.waitForIdle()
+        assertThat(drag.draggedApp).isEqualTo(notes)
+        compose.onRoot().performTouchInput { up() }
+        compose.waitForIdle()
+        compose.onNodeWithText("App info").assertIsDisplayed()
+    }
+
     @Test fun aStillLongPressOpensTheMenuAndLeavesTheApp() {
         show()
 
@@ -349,12 +373,17 @@ class FolderCardTest {
         assertThat(reorderedFolderApps(apps, a, 99)).containsExactly(b, c, d, a).inOrder()
     }
 
-    @Test fun folderSlotIndexCountsTheScrollOffset() {
-        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, 100f, 0f, 20)).isEqualTo(0)
-        assertThat(folderSlotIndex(Offset(350f, 10f), 400f, 100f, 0f, 20)).isEqualTo(3)
-        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, 100f, 400f, 20)).isEqualTo(16)
-        assertThat(folderSlotIndex(Offset(350f, 10f), 400f, 100f, 400f, 18)).isEqualTo(17)
-        assertThat(folderSlotIndex(Offset(-5f, -5f), 400f, 100f, 0f, 20)).isEqualTo(0)
+    @Test fun folderSlotIndexReadsTheRowFromTheVisibleBandsAndClampsToTheApps() {
+        // The grid scrolled: rows 2 and 3 visible, row 2 partly out at the top and taller than row 3.
+        val rows = listOf(RowBand(row = 2, top = -40), RowBand(row = 3, top = 90))
+        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, rows, 20)).isEqualTo(8)
+        assertThat(folderSlotIndex(Offset(350f, 80f), 400f, rows, 20)).isEqualTo(11)
+        assertThat(folderSlotIndex(Offset(10f, 95f), 400f, rows, 20)).isEqualTo(12)
+        // Below the last visible row: that row. Above the first: the first. Never past the last app.
+        assertThat(folderSlotIndex(Offset(350f, 400f), 400f, rows, 20)).isEqualTo(15)
+        assertThat(folderSlotIndex(Offset(350f, 400f), 400f, rows, 14)).isEqualTo(13)
+        assertThat(folderSlotIndex(Offset(-5f, -100f), 400f, rows, 20)).isEqualTo(8)
+        assertThat(folderSlotIndex(Offset(10f, 10f), 400f, emptyList(), 20)).isEqualTo(0)
     }
 
     @Test fun aLongPressAndMoveInsideTheCardReordersAndReportsTheNeighbour() {
@@ -394,18 +423,46 @@ class FolderCardTest {
         compose.onNodeWithText("App info").assertDoesNotExist()
     }
 
+    /** A pull upwards from the second row would scroll the grid a row (the first row out of sight);
+     *  with an icon lifted the grid holds still and the pull is the reorder. */
     @Test fun theGridDoesNotScrollWhileAnItemIsLifted() {
         folderState = folderState.copy(apps = (1..24).map { AppItem("com.a$it", "Main", user, 0L, "a$it") })
         show()
         compose.onNodeWithText("a24").assertDoesNotExist()
         val a1 = rootCenter("a1")
 
-        hold("a1")
-        moveTo(a1 + Offset(0f, 150f))
+        hold("a5")
+        moveTo(a1)
+        assertThat(drag.moving).isTrue()
 
+        // The first row is where it was (the live reorder only moves a1 sideways within it).
         compose.onNodeWithText("a1").assertIsDisplayed()
+        compose.onNodeWithText("a2").assertIsDisplayed()
+        assertThat(rootCenter("a1").y).isEqualTo(a1.y)
         compose.onNodeWithText("a24").assertDoesNotExist()
-        release("a1")
+        release("a5")
+    }
+
+    /** Rows are not all the same height when a name wraps to a second line, and the first visible
+     *  icon's own height is no other row's: the slot under the finger comes from the visible rows'
+     *  real bands. Here the first icon's name wraps (a tall first row) and the finger is near the top
+     *  of a slot in the third row, which the first icon's height as the row height put in the second. */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // real text measurement: a long name wraps
+    fun aReorderTargetsTheRowUnderTheFingerWhenRowsDifferInHeight() {
+        val apps = (1..12).map { AppItem("com.a$it", "Main", user, 0L, "a$it") }.toMutableList()
+        apps[0] = AppItem("com.a1", "Main", user, 0L, "An application name that wraps")
+        folderState = folderState.copy(apps = apps)
+        show()
+        val a10 = compose.onNodeWithText("a10").fetchSemanticsNode().boundsInRoot
+        val nearTheTopOfA10 = Offset(a10.center.x, a10.top + a10.height * 0.1f)
+
+        hold("a9")
+        moveTo(Offset(a10.center.x, a10.center.y))
+        moveTo(nearTheTopOfA10)
+        release("a9")
+
+        assertThat(reorders).containsExactly(apps[8] to apps[10])
     }
 
     @Test fun theDatabaseOrderReplacesThePreviewWhenItArrives() {
