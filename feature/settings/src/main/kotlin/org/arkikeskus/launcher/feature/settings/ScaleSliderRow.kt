@@ -1,5 +1,6 @@
 package org.arkikeskus.launcher.feature.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,9 +39,9 @@ internal fun scalePercent(value: Float): Int = (value * 100f).roundToInt()
 
 /**
  * A settings slider for a multiplier setting (icon size, label size, long-press delay): the current
- * value is shown next to the label in the words of [valueText], the thumb snaps to [step]
+ * value is shown beside the label in the words of [valueText], the thumb snaps to [step]
  * increments with a tick of haptic feedback on every change so a move is felt, and a "Default …"
- * chip appears whenever the value is off [default] to bring it straight back.
+ * chip under the slider appears whenever the value is off [default] to bring it straight back.
  */
 @Composable
 internal fun ScaleSliderRow(
@@ -56,15 +57,15 @@ internal fun ScaleSliderRow(
     val p = LocalExpressivePalette.current
     val haptics = LocalHapticFeedback.current
     val shown = valueText(value)
-    // The readout the last tick was felt at: one tick per visible change, however many times the
-    // slider reports the same snapped value while the stored setting catches up.
-    var lastFelt by remember { mutableStateOf(shown) }
+    // The readout last reported within the gesture in progress, null between gestures. A tick is felt
+    // when the new readout differs from it — or, at the start of a gesture, from what is shown — so a
+    // slider that repeats the same snapped value while the stored setting catches up ticks once, and a
+    // value that arrived from outside (the stored setting loading, a restore) is judged as shown.
+    var feltBase by remember { mutableStateOf<String?>(null) }
     val change: (Float) -> Unit = { next ->
         val text = valueText(next)
-        if (text != lastFelt) {
-            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-            lastFelt = text
-        }
+        if (text != (feltBase ?: shown)) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        feltBase = text
         onValueChange(next)
     }
     Surface(
@@ -76,16 +77,13 @@ internal fun ScaleSliderRow(
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, color = p.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                if (shown != valueText(default)) {
-                    TextButton(
-                        onClick = { change(default) },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        modifier = Modifier.padding(end = 6.dp),
-                    ) {
-                        Text(stringResource(R.string.settings_reset_default, valueText(default)), color = Accent, fontSize = 13.sp)
-                    }
-                }
-                Text(shown, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    shown,
+                    color = p.text,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
             }
             if (description != null) {
                 Text(description, color = p.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
@@ -93,6 +91,7 @@ internal fun ScaleSliderRow(
             Slider(
                 value = value,
                 onValueChange = change,
+                onValueChangeFinished = { feltBase = null },
                 valueRange = valueRange,
                 steps = scaleSliderSteps(valueRange, step),
                 colors = SliderDefaults.colors(
@@ -103,6 +102,20 @@ internal fun ScaleSliderRow(
                     inactiveTickColor = p.trackOff,
                 ),
             )
+            // Below the slider, so its appearance never moves the thumb away from the finger.
+            if (shown != valueText(default)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = {
+                            change(default)
+                            feltBase = null
+                        },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    ) {
+                        Text(stringResource(R.string.settings_reset_default, valueText(default)), color = Accent, fontSize = 13.sp)
+                    }
+                }
+            }
         }
     }
 }

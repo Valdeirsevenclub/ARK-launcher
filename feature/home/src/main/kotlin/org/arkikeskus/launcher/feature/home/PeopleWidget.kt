@@ -110,6 +110,7 @@ import org.arkikeskus.launcher.data.search.PermissionChecker
 import org.arkikeskus.launcher.data.search.RawContact
 import org.arkikeskus.launcher.model.AppItem
 import org.arkikeskus.launcher.model.LauncherSettings
+import org.arkikeskus.launcher.ui.LongPressDelay
 import org.arkikeskus.launcher.ui.IconMenuItem
 import org.arkikeskus.launcher.ui.IconMenuPopup
 import org.arkikeskus.launcher.ui.LauncherIcons
@@ -796,7 +797,8 @@ private fun AllTilesDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.people_all_title)) },
-        text = {
+        // The dialog is its own window: re-apply the long-press delay setting for the rows' long-press.
+        text = { LongPressDelay {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 tiles.forEach { tile -> key(tile.key) {
                     val hideName = tile.hidesName(privacy)
@@ -828,7 +830,7 @@ private fun AllTilesDialog(
                     }
                 } }
             }
-        },
+        } },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.people_reply_cancel)) }
         },

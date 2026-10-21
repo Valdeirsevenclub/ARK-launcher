@@ -97,6 +97,7 @@ import org.arkikeskus.launcher.ui.DragSource
 import org.arkikeskus.launcher.ui.HomeDragController
 import org.arkikeskus.launcher.ui.IconPress
 import org.arkikeskus.launcher.ui.LauncherIcons
+import org.arkikeskus.launcher.ui.LongPressDelay
 import org.arkikeskus.launcher.ui.PopupAction
 import org.arkikeskus.launcher.ui.R as UiR
 import org.arkikeskus.launcher.ui.RenameDialog
@@ -667,7 +668,8 @@ private fun DrawerFolderSheet(
     onDismiss: () -> Unit,
 ) {
     var showAdd by remember { mutableStateOf(false) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    // The sheet is its own window: re-apply the long-press delay setting for the members' long-press.
+    ModalBottomSheet(onDismissRequest = onDismiss) { LongPressDelay {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -720,7 +722,7 @@ private fun DrawerFolderSheet(
                 TextButton(onClick = onDelete) { Text(stringResource(R.string.folder_delete)) }
             }
         }
-    }
+    } }
     if (showAdd) {
         AddAppsDialog(
             apps = candidateApps,
