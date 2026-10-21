@@ -1,0 +1,8 @@
+Added
+- Reorder apps inside an open folder by dragging them.
+- Drag an app out of an open folder onto the home screen, the dock or "Remove".
+- Icon size setting (80–130 %) for the home screen, dock and app drawer.
+
+Changed
+- The open folder is a card over the home screen; its name is edited in place.
+- A screen reader stays inside the open folder; the home screen behind it is out of reach.
