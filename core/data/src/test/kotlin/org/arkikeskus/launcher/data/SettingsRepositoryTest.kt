@@ -577,4 +577,23 @@ class SettingsRepositoryTest {
         restored.importRaw(mapOf("long_press_scale" to "slow"))
         assertThat(restored.settings.first().longPressScale).isEqualTo(1.0f) // wrong type: dropped, no crash
     }
+    /** An older version restores a newer backup by storing the keys it does not know as Long; after the
+     *  upgrade the typed Float/Int reads of those keys must not throw on every settings read. */
+    @Test
+    fun `numeric keys an older version stored as Long are repaired before the first typed read`() = runTest {
+        val store = InMemoryDataStore()
+        store.edit {
+            it[longPreferencesKey("long_press_scale")] = 2L
+            it[longPreferencesKey("icon_scale")] = 1L
+            it[longPreferencesKey("drawer_columns")] = 5L
+            it[longPreferencesKey("app_label_color")] = 0xFF000000L
+            it[stringPreferencesKey("dock_opacity")] = "half"
+        }
+        val settings = SettingsRepository(store).settings.first()
+        assertThat(settings.longPressScale).isEqualTo(2.0f)
+        assertThat(settings.iconScale).isEqualTo(1.0f)
+        assertThat(settings.drawerColumns).isEqualTo(5)
+        assertThat(settings.appLabelColor).isEqualTo(0xFF000000.toInt())
+        assertThat(settings.dockBackgroundOpacity).isEqualTo(0.35f) // not a number: dropped, the default is back
+    }
 }

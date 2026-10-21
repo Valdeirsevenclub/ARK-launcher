@@ -42,14 +42,34 @@ class SettingsRepository @Inject constructor(
 ) {
 
     val settings: Flow<LauncherSettings> = dataStore.data.onStart {
-        // 0.7 imports unknown numeric backup keys as Long. Repair them before the first typed
-        // read when a newer backup was restored in 0.7 and the installation then upgraded.
+        // An older version restores a newer backup by storing the keys it does not know as Long
+        // (importRaw's fallback). After the upgrade every registered numeric key must hold its own
+        // type before the first typed read, or that read throws on every launch. A stored value of
+        // the right type is left alone; a wrong-typed number is converted (the read clamps it); a
+        // value that is not a number at all is dropped so the default applies.
         dataStore.edit { p ->
-            for (key in listOf(Keys.HOME_PAGE, Keys.HOME_PAGE_COUNT)) {
-                val raw = p.asMap()[key] ?: continue
+            val stored = p.asMap()
+            for (name in FLOAT_KEYS) {
+                val raw = stored[floatPreferencesKey(name)] ?: continue
+                if (raw !is Float) {
+                    p.remove(floatPreferencesKey(name))
+                    (raw as? Number)?.let { p[floatPreferencesKey(name)] = it.toFloat() }
+                }
+            }
+            for (name in INT_KEYS) {
+                val raw = stored[intPreferencesKey(name)] ?: continue
                 if (raw !is Int) {
-                    p[key] = (raw as? Number)?.toLong()
-                        ?.coerceIn(0L, HomeLayoutRepository.MAX_PAGES.toLong())?.toInt() ?: 0
+                    p.remove(intPreferencesKey(name))
+                    (raw as? Number)?.let {
+                        p[intPreferencesKey(name)] = when (name) {
+                            // Page counters clamp before the conversion so a huge Long cannot wrap.
+                            Keys.HOME_PAGE.name, Keys.HOME_PAGE_COUNT.name ->
+                                it.toLong().coerceIn(0L, HomeLayoutRepository.MAX_PAGES.toLong()).toInt()
+                            // An ARGB colour arrives as the signed Int's Long, or its unsigned form: wrap.
+                            Keys.APP_LABEL_COLOR.name -> it.toInt()
+                            else -> it.toLong().coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
+                        }
+                    }
                 }
             }
         }

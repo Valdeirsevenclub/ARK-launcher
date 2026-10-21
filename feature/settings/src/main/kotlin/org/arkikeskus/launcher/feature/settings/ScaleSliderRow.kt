@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -21,10 +22,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import org.arkikeskus.launcher.ui.expressive.Accent
 import org.arkikeskus.launcher.ui.expressive.LocalExpressivePalette
 import kotlin.math.roundToInt
@@ -33,6 +36,22 @@ import kotlin.math.roundToInt
  *  only the ticks strictly between the two ends). */
 internal fun scaleSliderSteps(range: ClosedFloatingPointRange<Float>, step: Float): Int =
     (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
+
+/**
+ * The system's own long-press timeout (Android's accessibility "Touch & hold delay"), re-read every
+ * time the screen resumes: it is not Compose state, and the user can change it in the system
+ * settings while this screen waits in the background.
+ */
+@Composable
+internal fun rememberSystemLongPressTimeout(): Long {
+    val configuration = LocalViewConfiguration.current
+    var timeout by remember(configuration) { mutableLongStateOf(configuration.longPressTimeoutMillis) }
+    LifecycleResumeEffect(configuration) {
+        timeout = configuration.longPressTimeoutMillis
+        onPauseOrDispose { }
+    }
+    return timeout
+}
 
 /** A size multiplier as a whole percent (1.149 → 115). */
 internal fun scalePercent(value: Float): Int = (value * 100f).roundToInt()

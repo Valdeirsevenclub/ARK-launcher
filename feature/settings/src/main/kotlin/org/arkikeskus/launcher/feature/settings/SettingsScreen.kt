@@ -70,7 +70,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -196,7 +195,7 @@ fun SettingsScreen(
                 DoubleTapLockToggle(enabled = s.doubleTapToLock, onSetEnabled = viewModel::setDoubleTapToLock)
                 // Read out in milliseconds of this phone's own long-press timeout times the setting, so the
                 // number is the real wait here and the default chip names it.
-                val systemLongPress = LocalViewConfiguration.current.longPressTimeoutMillis
+                val systemLongPress = rememberSystemLongPressTimeout()
                 ScaleSliderRow(
                     label = stringResource(R.string.settings_long_press_delay),
                     description = stringResource(R.string.settings_long_press_delay_desc),
