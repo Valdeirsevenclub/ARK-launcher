@@ -45,14 +45,23 @@ class DefaultReminderVisibilityTest {
     @Test
     fun theCardWaitsForTheStoredSettingsSoADismissedCardDoesNotFlashAtStartup() {
         // Until the home state has loaded, "dismissed" still reads its default (false).
-        assertThat(showDefaultReminder(loaded = false, isDefault = false, showOnboarding = false, dismissed = false)).isFalse()
+        assertThat(showDefaultReminder(loaded = false, isDefault = false, showOnboarding = false, dismissed = false, folderOpen = false)).isFalse()
     }
 
     @Test
     fun onceLoadedItShowsOnlyWhileNotDefaultNotOnboardingAndNotDismissed() {
-        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = false)).isTrue()
-        assertThat(showDefaultReminder(loaded = true, isDefault = true, showOnboarding = false, dismissed = false)).isFalse()
-        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = true, dismissed = false)).isFalse()
-        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = true)).isFalse()
+        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = false, folderOpen = false)).isTrue()
+        assertThat(showDefaultReminder(loaded = true, isDefault = true, showOnboarding = false, dismissed = false, folderOpen = false)).isFalse()
+        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = true, dismissed = false, folderOpen = false)).isFalse()
+        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = true, folderOpen = false)).isFalse()
+    }
+
+    /** The open folder is a card in the home window at the screen's centre, where the reminder sits
+     *  too: composed later, the reminder drew over the folder's name and apps and took their taps. The
+     *  reminder steps aside while a folder is open and returns when it closes. */
+    @Test
+    fun anOpenFolderHidesTheCardSoItNeverDrawsOverTheFolder() {
+        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = false, folderOpen = true)).isFalse()
+        assertThat(showDefaultReminder(loaded = true, isDefault = false, showOnboarding = false, dismissed = false, folderOpen = false)).isTrue()
     }
 }

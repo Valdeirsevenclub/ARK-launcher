@@ -762,8 +762,8 @@ fun HomeScreen(
         }
         // Not-default reminder card: shown until ARK-launcher is the default home or the user says
         // "Not now" (Settings keeps the set-as-default row) — but never under the full first-run
-        // intro, which has its own set-as-default step.
-        if (showDefaultReminder(uiState.loaded, isDefaultLauncher, showOnboarding, settings.defaultReminderDismissed)) {
+        // intro, which has its own set-as-default step, nor over an open folder's card.
+        if (showDefaultReminder(uiState.loaded, isDefaultLauncher, showOnboarding, settings.defaultReminderDismissed, openFolderId != null)) {
             DefaultLauncherReminder(
                 onSetDefault = {
                     runCatching { setDefaultLauncher.launch(DefaultLauncher.requestIntent(context)) }
@@ -1140,7 +1140,9 @@ internal fun DefaultLauncherReminder(
  * Whether the set-as-default card shows: only once the home state has [loaded] (until then the
  * stored "dismissed" still reads its default, and a dismissed card flashed at every cold start), while
  * ARK-launcher is not the default home, the first-run intro is not up, and the user has not said
- * "Not now".
+ * "Not now" — and not while a folder is open ([folderOpen]): its card sits at the screen's centre too,
+ * and the reminder, composed later, drew over it and took its taps.
  */
-internal fun showDefaultReminder(loaded: Boolean, isDefault: Boolean, showOnboarding: Boolean, dismissed: Boolean): Boolean =
-    loaded && !isDefault && !showOnboarding && !dismissed
+internal fun showDefaultReminder(
+    loaded: Boolean, isDefault: Boolean, showOnboarding: Boolean, dismissed: Boolean, folderOpen: Boolean,
+): Boolean = loaded && !isDefault && !showOnboarding && !dismissed && !folderOpen
