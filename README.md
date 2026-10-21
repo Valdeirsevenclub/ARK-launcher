@@ -144,6 +144,13 @@ Requirements: `minSdk 30`.
   `ui` (shared Compose components, popups, the expressive theme), `designsystem`, `launcher`.
 - `feature/*` — `home` (workspace + dock + widgets), `appdrawer`, `settings`, `backup`.
 
+## Support development
+
+If ARK-launcher is useful to you, you can support its development:
+
+- [GitHub Sponsors](https://github.com/sponsors/jrs8205) — monthly or one-time
+- [Buy Me a Coffee](https://buymeacoffee.com/jrs8205) — no sign-up needed
+
 ## License
 
 Licensed under the **Apache License, Version 2.0** — see [LICENSE](LICENSE).
