@@ -5,10 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.LauncherApps
-import android.graphics.Canvas
-import android.graphics.ColorFilter
-import android.graphics.PixelFormat
-import android.graphics.drawable.Drawable
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Process
 import android.os.UserHandle
@@ -66,8 +63,8 @@ class AndroidProfileSystem @Inject constructor(@ApplicationContext private val c
 
     /** Launcher3 `ApiWrapper.queryAllUsers`: a badged profile comes back as a different drawable. */
     private fun isBadged(user: UserHandle): Boolean = runCatching {
-        val noop = NoopDrawable()
-        context.packageManager.getUserBadgedIcon(noop, user) !== noop
+        val probe = BadgeProbeDrawable()
+        context.packageManager.getUserBadgedIcon(probe, user) !== probe
     }.getOrDefault(false)
 
     override fun changes(): Flow<Unit> = callbackFlow {
@@ -87,13 +84,16 @@ class AndroidProfileSystem @Inject constructor(@ApplicationContext private val c
                 addAction(Intent.ACTION_PROFILE_REMOVED)
                 addAction(Intent.ACTION_PROFILE_ACCESSIBLE)
                 addAction(Intent.ACTION_PROFILE_INACCESSIBLE)
-                // Public only recently; as string literals, the way Launcher3's UserCache has them,
-                // so the filter is the same on every API that sends them.
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                // Sent and protected from API 35 on; as string literals, the way Launcher3's
+                // UserCache has them. Not registered below 35: there the names are unprotected,
+                // and this receiver is exported.
                 addAction("android.intent.action.PROFILE_AVAILABLE")
                 addAction("android.intent.action.PROFILE_UNAVAILABLE")
             }
         }
-        // EXPORTED on purpose, as in SystemFlagsMonitor: every action is a protected system
+        // EXPORTED on purpose, as in SystemFlagsMonitor: every registered action is a protected system
         // broadcast (only the platform can send them, and onReceive only re-reads live state). The
         // NOT_EXPORTED backport guards pre-T receivers with a signature permission that only
         // system-uid senders bypass, which has silently dropped other system broadcasts there.
@@ -107,13 +107,15 @@ class AndroidProfileSystem @Inject constructor(@ApplicationContext private val c
         return um.requestQuietModeEnabled(enabled, user)
     }
 
-    /** Draws nothing; only its identity matters to [isBadged]. */
-    private class NoopDrawable : Drawable() {
-        override fun draw(canvas: Canvas) = Unit
-        override fun setAlpha(alpha: Int) = Unit
-        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+}
 
-        @Deprecated("Deprecated in Java")
-        override fun getOpacity(): Int = PixelFormat.TRANSPARENT
-    }
+/**
+ * The probe behind the badge check: only its identity matters, but `getUserBadgedIcon` draws the
+ * badge onto a bitmap of the probe's intrinsic size, so it must be a positive 1 x 1 (Launcher3's
+ * `ApiWrapper.NoopDrawable`) — a sizeless drawable makes the platform throw and every profile
+ * look unbadged.
+ */
+internal class BadgeProbeDrawable : ColorDrawable() {
+    override fun getIntrinsicWidth(): Int = 1
+    override fun getIntrinsicHeight(): Int = 1
 }

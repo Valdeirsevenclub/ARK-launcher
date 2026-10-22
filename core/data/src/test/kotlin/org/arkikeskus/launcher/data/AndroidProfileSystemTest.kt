@@ -91,6 +91,27 @@ class AndroidProfileSystemTest {
         assertThat(context.getSystemService(UserManager::class.java).isQuietModeEnabled(work)).isTrue()
     }
 
+    @Test fun theBadgeProbeHasAPositiveIntrinsicSize() {
+        // ApplicationPackageManager.getUserBadgedIcon draws the badge onto a bitmap of the probe's
+        // intrinsic size: a -1 x -1 probe makes createBitmap throw, and every profile then looks
+        // unbadged on API 30-34 (Launcher3's probe is a 1 x 1 ColorDrawable for this reason).
+        val probe = BadgeProbeDrawable()
+
+        assertThat(probe.intrinsicWidth).isEqualTo(1)
+        assertThat(probe.intrinsicHeight).isEqualTo(1)
+    }
+
+    @Test fun theLateProfileActionsAreNotRegisteredBelowApi35() = runTest {
+        // PROFILE_AVAILABLE / UNAVAILABLE are protected broadcasts only from API 35: on 34 an
+        // exported receiver for them would let any app trigger profile re-reads and app rescans.
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { system.changes().collect {} }
+
+        val filter = profileReceivers().single().intentFilter
+        assertThat(filter.hasAction(Intent.ACTION_PROFILE_ADDED)).isTrue()
+        assertThat(filter.hasAction("android.intent.action.PROFILE_AVAILABLE")).isFalse()
+        assertThat(filter.hasAction("android.intent.action.PROFILE_UNAVAILABLE")).isFalse()
+    }
+
     private fun profileReceivers() = shadowOf(context).registeredReceivers
         .filter { it.intentFilter.hasAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE) }
 }
