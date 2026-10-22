@@ -1,0 +1,2 @@
+Added
+- Personal and Work tabs in the app drawer when the phone has a work profile: work apps in their own grid with the work badge, a "Pause work apps" button and a paused card with "Unpause". Search still covers both profiles. The tabs appear and go as the profile is set up, paused or removed.
