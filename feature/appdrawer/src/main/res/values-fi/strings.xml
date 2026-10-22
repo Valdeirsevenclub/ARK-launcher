@@ -24,4 +24,10 @@
     <string name="drawer_frequent_apps">Eniten käytetyt</string>
     <string name="search_clear">Tyhjennä haku</string>
     <string name="search_no_results">Ei hakutuloksia</string>
+    <string name="drawer_tab_personal">Omat</string>
+    <string name="drawer_tab_work">Työ</string>
+    <string name="work_apps_pause">Keskeytä työsovellukset</string>
+    <string name="work_apps_unpause">Jatka</string>
+    <string name="work_apps_paused_title">Työsovellukset on keskeytetty</string>
+    <string name="work_apps_paused_body">Työsovellukset eivät voi lähettää ilmoituksia, käyttää akkua tai sijaintiasi.</string>
 </resources>
