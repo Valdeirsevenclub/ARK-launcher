@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.model.AppItem
@@ -187,7 +188,12 @@ class LauncherAppsSource @Inject constructor(
         false
     }
 
-    fun appsFlow(): Flow<List<AppItem>> = callbackFlow {
+    /**
+     * Streams the launchable apps of every profile. [reloadSignals] re-runs the query from outside
+     * the `LauncherApps.Callback`: the profile broadcasts, since the callback never reports a profile
+     * coming, going or pausing. Each signal is one reload request (conflated with the rest).
+     */
+    fun appsFlow(reloadSignals: Flow<Unit> = emptyFlow()): Flow<List<AppItem>> = callbackFlow {
         val handler = Handler(Looper.getMainLooper())
 
         // One serial worker fed by a conflated trigger, NOT a coroutine per event: overlapping
@@ -199,6 +205,7 @@ class LauncherAppsSource @Inject constructor(
         launch(Dispatchers.IO) {
             for (unused in reloads) trySend(queryApps())
         }
+        launch { reloadSignals.collect { reload() } }
 
         fun packageEvent(vararg packageNames: String, iconsMayHaveChanged: Boolean = false) {
             packageNames.forEach { packageEventPool.add(it) }

@@ -11,6 +11,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -20,7 +22,11 @@ import org.arkikeskus.launcher.data.HomeLayoutRepository
 import org.arkikeskus.launcher.data.IconPackRepository
 import org.arkikeskus.launcher.data.LauncherAppsSource
 import org.arkikeskus.launcher.data.NotificationBadgeRepository
+import org.arkikeskus.launcher.data.ProfileKind
+import org.arkikeskus.launcher.data.ProfileSnapshot
+import org.arkikeskus.launcher.data.ProfileSystem
 import org.arkikeskus.launcher.data.SettingsRepository
+import org.arkikeskus.launcher.data.WorkProfileRepository
 import org.arkikeskus.launcher.data.local.HomeItemDao
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.data.local.LauncherDatabase
@@ -63,10 +69,18 @@ internal class ProductionWiring(private val context: Application, testScope: Tes
 
     /** Eagerly shared, like the application scope in the app: the LauncherApps callback registers
      *  right here, so a shortcut published after this is reported whether or not anyone collects. */
-    val appRepository = AppRepository(
-        source, settingsRepository, appUsageRepository,
-        CoroutineScope(testScope.backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScope.testScheduler)),
-    )
+    private val appScope =
+        CoroutineScope(testScope.backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScope.testScheduler))
+
+    /** No work profile on the test device, and no profile broadcasts. */
+    private val noProfiles = object : ProfileSystem {
+        override fun snapshot(): List<ProfileSnapshot> =
+            listOf(ProfileSnapshot(serial = 0, kind = ProfileKind.Own, badged = false, paused = false))
+        override fun changes(): Flow<Unit> = emptyFlow()
+        override fun requestQuietMode(serial: Long, enabled: Boolean): Boolean = error("no work profile")
+    }
+    val workProfileRepository = WorkProfileRepository(noProfiles, appScope)
+    val appRepository = AppRepository(source, settingsRepository, appUsageRepository, workProfileRepository, appScope)
     val homeLayoutRepository = HomeLayoutRepository(db, dao, source)
 
     suspend fun pinOnHome(shortcutId: String): Long = dao.insert(

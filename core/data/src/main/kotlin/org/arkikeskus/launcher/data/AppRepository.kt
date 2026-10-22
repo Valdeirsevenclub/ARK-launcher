@@ -19,6 +19,7 @@ class AppRepository @Inject constructor(
     private val source: LauncherAppsSource,
     private val settingsRepository: SettingsRepository,
     private val appUsageRepository: AppUsageRepository,
+    profiles: WorkProfileRepository,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     /**
@@ -35,7 +36,11 @@ class AppRepository @Inject constructor(
      * a HOME process — so package events (and their icon-epoch bumps) are never missed while
      * collectors are briefly detached.
      */
-    val apps: Flow<List<AppItem>> = combine(source.appsFlow(), settingsRepository.customLabels) { apps, labels ->
+    val apps: Flow<List<AppItem>> = combine(
+        // A profile added, removed or toggled is not a package event: re-query on its broadcast.
+        source.appsFlow(reloadSignals = profiles.changes),
+        settingsRepository.customLabels,
+    ) { apps, labels ->
         if (labels.isEmpty()) {
             apps
         } else {
