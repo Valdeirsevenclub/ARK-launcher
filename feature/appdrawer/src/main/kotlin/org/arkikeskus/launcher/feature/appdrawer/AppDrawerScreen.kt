@@ -54,7 +54,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -595,14 +594,7 @@ private fun AppDrawerContent(
                     // lands on Personal through the same path. The pager starts on the current tab
                     // so its first settled page is not a reset (the pager is rebuilt after a search).
                     val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { DrawerTab.entries.size }
-                    LaunchedEffect(selectedTab) {
-                        if (pagerState.currentPage != selectedTab.ordinal) {
-                            pagerState.animateScrollToPage(selectedTab.ordinal)
-                        }
-                    }
-                    LaunchedEffect(pagerState) {
-                        snapshotFlow { pagerState.settledPage }.collect { onSelectTab(DrawerTab.entries[it]) }
-                    }
+                    SyncPagerWithTab(pagerState, selectedTab, onSelectTab)
                     HorizontalPager(
                         state = pagerState,
                         beyondViewportPageCount = 1,

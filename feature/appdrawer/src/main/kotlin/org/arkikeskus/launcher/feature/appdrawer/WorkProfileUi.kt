@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -26,10 +27,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +95,21 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
                 )
             }
         }
+    }
+}
+
+/**
+ * Keeps the pager and the ViewModel's tab in step: a new [selectedTab] animates the pager there,
+ * and a settled page reports back through [onSelectTab]. The animation is requested without a
+ * `currentPage` check on purpose: a tab tapped back before the previous animation reached its
+ * midpoint cancels that animation with `currentPage` unchanged, and the pager would otherwise
+ * rest mid-way until the next swipe. A pager already on the page is a no-op for the call.
+ */
+@Composable
+internal fun SyncPagerWithTab(pagerState: PagerState, selectedTab: DrawerTab, onSelectTab: (DrawerTab) -> Unit) {
+    LaunchedEffect(selectedTab) { pagerState.animateScrollToPage(selectedTab.ordinal) }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { onSelectTab(DrawerTab.entries[it]) }
     }
 }
 

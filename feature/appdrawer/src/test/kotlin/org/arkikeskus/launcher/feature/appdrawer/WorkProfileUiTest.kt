@@ -5,8 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +100,31 @@ class WorkProfileUiTest {
         compose.onNodeWithText("Work").performClick()
 
         assertThat(selected).isEqualTo(DrawerTab.Work)
+    }
+
+    @Test fun aTabTappedBackBeforeTheAnimationMidpointStillSettlesOnThatTab() {
+        // Personal -> Work starts the pager animation; Personal tapped before the midpoint cancels
+        // it with currentPage still Personal. The pager must travel back, not rest mid-way.
+        compose.mainClock.autoAdvance = false
+        var selected by mutableStateOf(DrawerTab.Personal)
+        lateinit var pagerState: PagerState
+        compose.setContent {
+            pagerState = rememberPagerState { DrawerTab.entries.size }
+            SyncPagerWithTab(pagerState, selected, onSelectTab = { selected = it })
+            HorizontalPager(pagerState, Modifier.size(320.dp, 400.dp)) { Box(Modifier.fillMaxSize()) }
+        }
+        compose.mainClock.advanceTimeByFrame()
+
+        selected = DrawerTab.Work
+        Snapshot.sendApplyNotifications() // a write from the test thread reaches the composition only then
+        compose.mainClock.advanceTimeUntil { pagerState.currentPageOffsetFraction > 0f }
+        assertThat(pagerState.currentPage).isEqualTo(0) // the premise: cancelled before the midpoint
+        selected = DrawerTab.Personal
+        Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(5_000)
+
+        assertThat(pagerState.currentPage).isEqualTo(0)
+        assertThat(pagerState.currentPageOffsetFraction).isEqualTo(0f)
     }
 
     @Test fun pauseButtonInvokesWhenEnabledOnly() {
