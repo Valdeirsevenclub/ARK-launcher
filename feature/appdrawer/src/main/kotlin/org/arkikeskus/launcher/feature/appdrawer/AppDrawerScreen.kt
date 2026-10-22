@@ -580,6 +580,10 @@ private fun AppDrawerContent(
                     }
                 }
             }
+            // The stored tab goes back to Personal whenever the Work tab goes (profile removed, last
+            // work app hidden): the pager must not reopen on Work the next time the tab reappears.
+            val hasWorkTab = workProfile != null
+            LaunchedEffect(hasWorkTab) { if (!hasWorkTab) onSelectTab(DrawerTab.Personal) }
             when {
                 searching -> DrawerGrid(gridState, 0.dp, searchContent)
                 // No Work tab: the drawer is exactly the 0.9.1 drawer.
