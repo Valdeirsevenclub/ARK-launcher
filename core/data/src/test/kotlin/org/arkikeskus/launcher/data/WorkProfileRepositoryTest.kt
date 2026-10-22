@@ -22,12 +22,13 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class WorkProfileRepositoryTest {
-    private class FakeProfileSystem(var profiles: List<ProfileSnapshot>) : ProfileSystem {
+    private open class FakeProfileSystem(var profiles: List<ProfileSnapshot>) : ProfileSystem {
         val broadcasts = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
         var collectors = 0
         var request: (Long, Boolean) -> Boolean = { _, _ -> true }
         override fun snapshot(): List<ProfileSnapshot> = profiles
-        override fun changes(): Flow<Unit> = broadcasts.onStart { collectors++ }
+        // The contract: one re-read request as soon as the receiver listens, then the broadcasts.
+        override fun changes(): Flow<Unit> = broadcasts.onStart { collectors++; emit(Unit) }
         override fun requestQuietMode(serial: Long, enabled: Boolean): Boolean = request(serial, enabled)
     }
 
@@ -64,6 +65,20 @@ class WorkProfileRepositoryTest {
         assertThat(repo.workProfile.value).isEqualTo(WorkProfile(userSerial = 10, paused = true))
     }
 
+    @Test fun theRegistrationReReadIsNotLostWhenItIsRelayedBeforeTheStateSubscribes() = runTest {
+        // On Dispatchers.Default the receiver registers on one worker and sends its re-read request
+        // while the state's collector is still starting on another: the relay must keep that one
+        // signal for it. The fake relays at collection start, which is that ordering every time.
+        val fake = object : FakeProfileSystem(listOf(own)) {
+            var reads = 0
+            override fun snapshot(): List<ProfileSnapshot> =
+                if (++reads == 1) listOf(own) else listOf(own, work(paused = true))
+        }
+        val repo = repository(fake)
+
+        assertThat(repo.workProfile.value).isEqualTo(WorkProfile(userSerial = 10, paused = true))
+    }
+
     @Test fun aChangeBeforeTheFirstCollectorIsNotLost() = runTest {
         val fake = FakeProfileSystem(listOf(own))
         val repo = repository(fake)
@@ -94,15 +109,16 @@ class WorkProfileRepositoryTest {
         assertThat(fake.collectors).isEqualTo(1)
     }
 
-    @Test fun changesRelaysEveryBroadcast() = runTest {
+    @Test fun theRegistrationSignalIsKeptForALateCollectorThenEveryBroadcastIsRelayed() = runTest {
         val fake = FakeProfileSystem(listOf(own))
         val repo = repository(fake)
         val seen = mutableListOf<Unit>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { repo.changes.collect { seen += it } }
+        assertThat(seen).hasSize(1)
 
         repeat(3) { fake.broadcasts.emit(Unit) }
 
-        assertThat(seen).hasSize(3)
+        assertThat(seen).hasSize(4)
     }
 
     @Test fun setWorkPausedRequestedWhenThePlatformSaysTrueOrFalse() = runTest {

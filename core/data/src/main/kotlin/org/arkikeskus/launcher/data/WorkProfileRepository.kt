@@ -68,8 +68,12 @@ class WorkProfileRepository(
 
     private val flags = MutableStateFlow(Flags())
 
-    /** Shared relay of [ProfileSystem.changes]: ONE receiver for the whole process. */
-    val changes: SharedFlow<Unit> = system.changes().shareIn(scope, SharingStarted.Eagerly)
+    /** Shared relay of [ProfileSystem.changes]: ONE receiver for the whole process. Replays the
+     *  latest signal: the system's post-registration re-read request can be relayed before
+     *  [platform] has subscribed (the receiver registers on one worker, the state's collector
+     *  starts on another), and without the replay it is simply gone. A collector that comes later
+     *  (the app list) sees one spare signal, which its conflated reload absorbs. */
+    val changes: SharedFlow<Unit> = system.changes().shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
     /** The platform's answer: read once right here (the first reader must not see a stale null
      *  while the scope spins up), then re-read on every change event — the first of which the
