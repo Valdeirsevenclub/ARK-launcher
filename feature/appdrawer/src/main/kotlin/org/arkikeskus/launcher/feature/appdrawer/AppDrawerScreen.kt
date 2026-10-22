@@ -65,6 +65,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -930,7 +931,7 @@ private fun FrequentAppsCard(
 }
 
 /** The drawer app-grid cell, shared by the idle and searching layouts. */
-private fun LazyGridScope.appCells(
+internal fun LazyGridScope.appCells(
     apps: List<AppItem>,
     badges: Map<String, Int>,
     badgeShowCount: Boolean,
@@ -983,8 +984,8 @@ private fun LazyGridScope.appCells(
                                     return@withTimeoutOrNull
                                 }
                                 // Don't consume: let the LazyGrid scroll a quick drag. Vertical travel
-                                // past the slop is that scroll; sideways roll only ends the hold once
-                                // the finger leaves the icon (the grid never scrolls sideways).
+                                // past the slop is that scroll; a sideways roll ends the hold once
+                                // the finger leaves the icon.
                                 if (c.isConsumed ||
                                     abs(c.position.y - down.position.y) > slop ||
                                     !IconPress.staysOnIcon(c.position, size, slop)
@@ -993,6 +994,16 @@ private fun LazyGridScope.appCells(
                                     return@withTimeoutOrNull
                                 }
                                 holdPos = c.position
+                                // The Personal / Work pager claims a sideways swipe in the Main pass
+                                // AFTER this child, and the page then follows the finger, so the
+                                // pointer never leaves the icon: only the Final pass shows the claim
+                                // (the same rule as awaitIconPress in core/ui). Without it a flick
+                                // between the tabs launched the app under the finger.
+                                awaitPointerEvent(PointerEventPass.Final)
+                                if (c.isConsumed) {
+                                    outcome = 2
+                                    return@withTimeoutOrNull
+                                }
                             }
                         }
                         when (outcome) {
