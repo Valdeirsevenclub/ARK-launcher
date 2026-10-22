@@ -17,8 +17,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import org.arkikeskus.launcher.data.AppIconFetcher
 import org.arkikeskus.launcher.data.AppIconKeyer
+import org.arkikeskus.launcher.data.AndroidProfileSystem
 import org.arkikeskus.launcher.data.AppRowResolver
 import org.arkikeskus.launcher.data.LauncherAppsSource
+import org.arkikeskus.launcher.data.ProfileSystem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -93,4 +95,7 @@ object DataModule {
 
     @Provides
     fun provideAppRowResolver(source: LauncherAppsSource): AppRowResolver = source
+
+    @Provides
+    fun provideProfileSystem(impl: AndroidProfileSystem): ProfileSystem = impl
 }

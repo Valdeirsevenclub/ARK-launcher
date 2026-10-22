@@ -1,0 +1,119 @@
+package org.arkikeskus.launcher.data
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.LauncherApps
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
+import android.os.Build
+import android.os.Process
+import android.os.UserHandle
+import android.os.UserManager
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * [ProfileSystem] on the platform: `UserManager` for the profiles and their quiet mode,
+ * `LauncherApps.getLauncherUserInfo` (API 35+) for the profile type, Launcher3's badge check below
+ * that, and one `BroadcastReceiver` per collector of [changes] for the profile broadcasts —
+ * `LauncherApps.Callback` never reports a profile coming, going or pausing.
+ */
+@Singleton
+class AndroidProfileSystem @Inject constructor(@ApplicationContext private val context: Context) : ProfileSystem {
+    private val userManager = context.getSystemService(UserManager::class.java)
+    private val launcherApps = context.getSystemService(LauncherApps::class.java)
+
+    override fun snapshot(): List<ProfileSnapshot> = runCatching {
+        val own = Process.myUserHandle()
+        val profiles = userManager?.userProfiles ?: listOf(own)
+        profiles.mapNotNull { user ->
+            val serial = userManager?.getSerialNumberForUser(user) ?: return@mapNotNull null
+            if (serial < 0) return@mapNotNull null
+            val kind = when {
+                user == own -> ProfileKind.Own
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM -> platformKind(user)
+                else -> ProfileKind.Unknown
+            }
+            ProfileSnapshot(
+                serial = serial,
+                kind = kind,
+                badged = kind == ProfileKind.Unknown && isBadged(user),
+                paused = runCatching { userManager.isQuietModeEnabled(user) }.getOrDefault(false),
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    /** The platform's own typing of [user]; [ProfileKind.Unknown] when it does not describe it. */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private fun platformKind(user: UserHandle): ProfileKind =
+        when (runCatching { launcherApps?.getLauncherUserInfo(user) }.getOrNull()?.userType) {
+            null -> ProfileKind.Unknown
+            UserManager.USER_TYPE_PROFILE_MANAGED -> ProfileKind.Managed
+            UserManager.USER_TYPE_PROFILE_PRIVATE -> ProfileKind.Private
+            UserManager.USER_TYPE_PROFILE_CLONE -> ProfileKind.Clone
+            else -> ProfileKind.Unknown
+        }
+
+    /** Launcher3 `ApiWrapper.queryAllUsers`: a badged profile comes back as a different drawable. */
+    private fun isBadged(user: UserHandle): Boolean = runCatching {
+        val noop = NoopDrawable()
+        context.packageManager.getUserBadgedIcon(noop, user) !== noop
+    }.getOrDefault(false)
+
+    override fun changes(): Flow<Unit> = callbackFlow {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                trySend(Unit)
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_MANAGED_PROFILE_ADDED)
+            addAction(Intent.ACTION_MANAGED_PROFILE_REMOVED)
+            addAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE)
+            addAction(Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE)
+            addAction(Intent.ACTION_MANAGED_PROFILE_UNLOCKED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                addAction(Intent.ACTION_PROFILE_ADDED)
+                addAction(Intent.ACTION_PROFILE_REMOVED)
+                addAction(Intent.ACTION_PROFILE_ACCESSIBLE)
+                addAction(Intent.ACTION_PROFILE_INACCESSIBLE)
+                // Public only recently; as string literals, the way Launcher3's UserCache has them,
+                // so the filter is the same on every API that sends them.
+                addAction("android.intent.action.PROFILE_AVAILABLE")
+                addAction("android.intent.action.PROFILE_UNAVAILABLE")
+            }
+        }
+        // EXPORTED on purpose, as in SystemFlagsMonitor: every action is a protected system
+        // broadcast (only the platform can send them, and onReceive only re-reads live state). The
+        // NOT_EXPORTED backport guards pre-T receivers with a signature permission that only
+        // system-uid senders bypass, which has silently dropped other system broadcasts there.
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        awaitClose { context.unregisterReceiver(receiver) }
+    }
+
+    override fun requestQuietMode(serial: Long, enabled: Boolean): Boolean {
+        val um = userManager ?: throw IllegalStateException("no UserManager")
+        val user = um.getUserForSerialNumber(serial) ?: throw IllegalStateException("profile $serial is gone")
+        return um.requestQuietModeEnabled(enabled, user)
+    }
+
+    /** Draws nothing; only its identity matters to [isBadged]. */
+    private class NoopDrawable : Drawable() {
+        override fun draw(canvas: Canvas) = Unit
+        override fun setAlpha(alpha: Int) = Unit
+        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSPARENT
+    }
+}
