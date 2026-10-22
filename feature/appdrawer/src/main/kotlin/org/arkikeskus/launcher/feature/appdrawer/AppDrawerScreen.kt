@@ -291,7 +291,7 @@ fun AppDrawerScreen(
     if (openFolder != null) {
         DrawerFolderSheet(
             folder = openFolder,
-            candidateApps = uiState.apps,
+            candidateApps = uiState.folderCandidates,
             badges = badges,
             badgeShowCount = uiState.notificationDotCount,
             badgeScale = uiState.notificationDotScale,

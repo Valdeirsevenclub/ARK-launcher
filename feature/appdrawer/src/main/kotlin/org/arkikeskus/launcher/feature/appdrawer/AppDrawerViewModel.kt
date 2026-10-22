@@ -23,9 +23,11 @@ import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.data.AppRepository
 import org.arkikeskus.launcher.data.HomeLayoutRepository
 import org.arkikeskus.launcher.data.NotificationBadgeRepository
+import org.arkikeskus.launcher.data.PauseOutcome
 import org.arkikeskus.launcher.data.PlaceResult
 import org.arkikeskus.launcher.data.ShortcutPinLock
 import org.arkikeskus.launcher.data.SettingsRepository
+import org.arkikeskus.launcher.data.WorkProfileRepository
 import org.arkikeskus.launcher.data.local.HomeItemEntity
 import org.arkikeskus.launcher.data.search.SearchAggregator
 import org.arkikeskus.launcher.model.AppItem
@@ -37,9 +39,21 @@ import javax.inject.Inject
 /** A drawer folder resolved to its member [apps] (for rendering). */
 data class DrawerFolderUi(val id: Long, val name: String, val apps: List<AppItem>)
 
+/** The work profile as the Work tab needs it; see `WorkProfile` in core/data for the fields. */
+data class WorkProfileUi(val paused: Boolean, val canPause: Boolean, val transitioning: Boolean)
+
 data class AppDrawerUiState(
+    /** The Personal grid while idle; the flat search results while searching. */
     val apps: List<AppItem> = emptyList(),
+    /** The Work grid while idle (empty without a work profile and while searching). */
+    val workApps: List<AppItem> = emptyList(),
     val folders: List<DrawerFolderUi> = emptyList(),
+    /** What a folder's "Add apps" sheet offers: the visible apps of both profiles not in a folder. */
+    val folderCandidates: List<AppItem> = emptyList(),
+    /** Non-null only when the Work tab has something to show (see [workTabVisible]). */
+    val workProfile: WorkProfileUi? = null,
+    /** The tab the pager shows; always Personal while [workProfile] is null. */
+    val selectedTab: DrawerTab = DrawerTab.Personal,
     val query: String = "",
     val columns: Int = 4,
     val dockKeys: Set<String> = emptySet(),
@@ -76,6 +90,7 @@ class AppDrawerViewModel @Inject constructor(
     notificationBadgeRepository: NotificationBadgeRepository,
     private val searchAggregator: SearchAggregator,
     private val appUsageRepository: org.arkikeskus.launcher.data.AppUsageRepository,
+    private val workProfileRepository: WorkProfileRepository,
 ) : ViewModel() {
 
     private val _notices = Channel<HomeNotice>(Channel.BUFFERED)
@@ -89,6 +104,7 @@ class AppDrawerViewModel @Inject constructor(
     }
 
     private val query = MutableStateFlow("")
+    private val selectedTabFlow = MutableStateFlow(DrawerTab.Personal)
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     private val searchResults: Flow<SearchResults> = combine(
@@ -134,18 +150,32 @@ class AppDrawerViewModel @Inject constructor(
         )
     }.combine(notificationBadgeRepository.badges) { state, badges ->
         state.copy(badges = badges)
-    }.combine(settingsRepository.hiddenApps) { state, hidden ->
-        // Hide selected apps from the drawer (also excludes them from search results).
-        if (hidden.isEmpty()) state else state.copy(apps = state.apps.filterNot { it.key in hidden })
-    }.combine(settingsRepository.drawerFolders) { state, folders ->
-        // While searching (or with no folders) keep a flat list so folder members stay findable.
-        if (state.query.isNotBlank() || folders.isEmpty()) {
-            state
-        } else {
-            val byKey = state.apps.associateBy { it.key }
-            val folderUis = folders.map { f -> DrawerFolderUi(f.id, f.name, f.appKeys.mapNotNull { byKey[it] }) }
-            val inFolder = folders.flatMap { it.appKeys }.toSet()
-            state.copy(apps = state.apps.filterNot { it.key in inFolder }, folders = folderUis)
+    }.let { base ->
+        combine(
+            base,
+            settingsRepository.hiddenApps,
+            settingsRepository.drawerFolders,
+            workProfileRepository.workProfile,
+        ) { state, hidden, folders, profile ->
+            // Hidden apps leave every list (the search results too: AppSearchProvider filters them
+            // itself), the work profile's apps go to the Work grid, folders take their members out
+            // of the Personal grid only. While searching keep a flat list so folder members stay
+            // findable.
+            val partition = partitionDrawer(
+                apps = state.apps,
+                hidden = hidden,
+                folders = if (state.query.isNotBlank()) emptyList() else folders,
+                workSerial = profile?.userSerial,
+            )
+            state.copy(
+                apps = partition.personal,
+                workApps = partition.work,
+                folders = partition.folders,
+                folderCandidates = partition.folderCandidates,
+                workProfile = profile
+                    ?.takeIf { workTabVisible(it, partition.work) }
+                    ?.let { WorkProfileUi(it.paused, it.canPause, it.transitioning) },
+            )
         }
     }.combine(searchResults) { state, results ->
         if (state.query.isBlank()) {
@@ -153,6 +183,7 @@ class AppDrawerViewModel @Inject constructor(
         } else {
             state.copy(
                 apps = results.apps,          // hidden-aware app matches from AppSearchProvider
+                workApps = emptyList(),        // one flat list across both profiles
                 folders = emptyList(),         // no folders while searching
                 calc = results.calc,
                 settingResults = results.settings,
@@ -178,6 +209,10 @@ class AppDrawerViewModel @Inject constructor(
                 .map { it.first }
             state.copy(frequentApps = ranked)
         }
+    }.combine(selectedTabFlow) { state, tab ->
+        // A Work selection only means something while the Work tab exists: hiding the last work
+        // app, or the profile going, lands the pager on Personal.
+        state.copy(selectedTab = effectiveTab(tab, hasWorkTab = state.workProfile != null))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -189,6 +224,17 @@ class AppDrawerViewModel @Inject constructor(
     }
 
     fun hideApp(appItem: AppItem) = viewModelScope.launch { settingsRepository.setAppHidden(appItem.key, true) }
+
+    fun selectTab(tab: DrawerTab) {
+        selectedTabFlow.value = tab
+    }
+
+    /** Pauses or unpauses the work profile; only the default launcher may, so the other case gets a notice. */
+    fun setWorkPaused(paused: Boolean) = viewModelScope.launch {
+        if (workProfileRepository.setWorkPaused(paused) == PauseOutcome.NotDefaultLauncher) {
+            notify(HomeNotice.WorkAppsNeedDefault)
+        }
+    }
 
     /** Launches [appItem]; returns whether it started, so the drawer only closes on success. */
     fun onAppClick(appItem: AppItem): Boolean =
