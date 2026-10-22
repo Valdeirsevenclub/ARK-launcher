@@ -98,6 +98,9 @@ class AndroidProfileSystem @Inject constructor(@ApplicationContext private val c
         // NOT_EXPORTED backport guards pre-T receivers with a signature permission that only
         // system-uid senders bypass, which has silently dropped other system broadcasts there.
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        // Now listening: ask for one re-read, since a change between the caller's first read and
+        // this registration (the launcher starting while a profile is set up) was not heard.
+        trySend(Unit)
         awaitClose { context.unregisterReceiver(receiver) }
     }
 

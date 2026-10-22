@@ -34,8 +34,10 @@ interface ProfileSystem {
     /** Every profile the launcher can see, the own user included; empty when the lookup fails. */
     fun snapshot(): List<ProfileSnapshot>
 
-    /** One `Unit` per profile broadcast (added / removed / available / unavailable / unlocked).
-     *  Cold: each collector registers its own receiver, so share it. */
+    /** One `Unit` right after the receiver is registered — a request to re-read, because a profile
+     *  that changed before the receiver existed sent a broadcast nobody heard — then one per profile
+     *  broadcast (added / removed / available / unavailable / unlocked). Cold: each collector
+     *  registers its own receiver, so share it. */
     fun changes(): Flow<Unit>
 
     /** `UserManager.requestQuietModeEnabled` for the profile with [serial]; throws what the platform

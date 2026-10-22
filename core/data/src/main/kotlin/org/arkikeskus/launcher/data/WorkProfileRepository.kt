@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -73,10 +72,10 @@ class WorkProfileRepository(
     val changes: SharedFlow<Unit> = system.changes().shareIn(scope, SharingStarted.Eagerly)
 
     /** The platform's answer: read once right here (the first reader must not see a stale null
-     *  while the scope spins up), re-read on every broadcast — subscribed before that re-read, so
-     *  a broadcast in between is not lost — and a change also lifts a `canPause` veto. */
+     *  while the scope spins up), then re-read on every change event — the first of which the
+     *  system sends once its receiver is registered, so a profile that changed in between is not
+     *  missed — and a change also lifts a `canPause` veto. */
     private val platform: StateFlow<ProfileSnapshot?> = changes
-        .onSubscription { emit(Unit) }
         .onEach { flags.update { it.copy(canPause = true) } }
         .map { withContext(io) { workProfileOf(system.snapshot()) } }
         .stateIn(scope, SharingStarted.Eagerly, initialValue = workProfileOf(system.snapshot()))

@@ -61,16 +61,30 @@ class AndroidProfileSystemTest {
         assertThat(system.snapshot().single { it.serial == 10L }.paused).isTrue()
     }
 
+    @Test fun changesEmitsARefreshOnceTheReceiverIsRegistered() = runTest {
+        // A profile that changes while the launcher starts — after the repository's first read but
+        // before this receiver exists — sends a broadcast nobody hears. The registration itself is
+        // therefore one change event, so the state is re-read once the receiver is listening.
+        val seen = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { system.changes().collect { seen += it } }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(profileReceivers()).hasSize(1)
+        assertThat(seen).hasSize(1)
+    }
+
     @Test fun changesEmitsOncePerProfileBroadcast() = runTest {
         val seen = mutableListOf<Unit>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { system.changes().collect { seen += it } }
+        shadowOf(Looper.getMainLooper()).idle()
+        val afterRegistration = seen.size
 
         context.sendBroadcast(Intent(Intent.ACTION_MANAGED_PROFILE_AVAILABLE))
         context.sendBroadcast(Intent(Intent.ACTION_MANAGED_PROFILE_AVAILABLE))
         context.sendBroadcast(Intent("android.intent.action.PROFILE_ADDED"))
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertThat(seen).hasSize(3)
+        assertThat(seen.size - afterRegistration).isEqualTo(3)
     }
 
     @Test fun theReceiverGoesWhenTheCollectorStops() = runTest {
