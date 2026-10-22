@@ -1,6 +1,18 @@
 package org.arkikeskus.launcher.feature.appdrawer
 
 import android.app.Application
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -72,6 +84,33 @@ class WorkProfileUiTest {
         compose.onNodeWithText("Unpause").performClick()
 
         assertThat(unpauses).isEqualTo(1)
+    }
+
+    @Test fun pausedCardHandsAPullDownToTheNestedScrollParent() {
+        // The drawer's pull-to-close lives in a NestedScrollConnection above the page: the paused
+        // page must dispatch a downward drag to it like the grids do, or the drawer cannot be
+        // pulled shut while the profile is paused.
+        var pulled = 0f
+        val connection = object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0f) pulled += available.y
+                return Offset.Zero
+            }
+        }
+        compose.setContent {
+            ExpressiveTheme {
+                Box(Modifier.size(300.dp).nestedScroll(connection).testTag("host")) {
+                    WorkPausedCard(canPause = true, enabled = true, onUnpause = {})
+                }
+            }
+        }
+
+        compose.onNodeWithTag("host").performTouchInput {
+            swipe(start = Offset(150f, 40f), end = Offset(150f, 260f), durationMillis = 120)
+        }
+        compose.waitForIdle()
+
+        assertThat(pulled).isGreaterThan(0f)
     }
 
     @Test fun pausedCardHidesUnpauseWhenItCannotPause() {

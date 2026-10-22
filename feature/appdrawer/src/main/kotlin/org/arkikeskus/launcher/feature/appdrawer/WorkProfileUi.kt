@@ -2,6 +2,7 @@ package org.arkikeskus.launcher.feature.appdrawer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,12 +10,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -87,7 +91,7 @@ internal fun PauseWorkAppsButton(enabled: Boolean, onClick: () -> Unit, modifier
         enabled = enabled,
         shape = RoundedCornerShape(24.dp),
         colors = accentButtonColors(),
-        modifier = modifier.height(48.dp),
+        modifier = modifier.heightIn(min = 48.dp),
     ) {
         Icon(painter = painterResource(LauncherIcons.Work), contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
@@ -99,16 +103,24 @@ internal fun PauseWorkAppsButton(enabled: Boolean, onClick: () -> Unit, modifier
  * What the Work page shows while the profile is paused: the work glyph, the title, one line of
  * body and, when the profile accepts pause requests, the "Unpause" button (disabled while a
  * request is in flight). Fills its page so the card sits in the middle.
+ *
+ * The page is a scroll container although the card fits: the drawer's pull-to-close is a
+ * nested-scroll parent, and only a scrollable child hands it a downward drag. It also keeps the
+ * card reachable in landscape or at a large font size.
  */
 @Composable
 internal fun WorkPausedCard(canPause: Boolean, enabled: Boolean, onUnpause: () -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalExpressivePalette.current
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val pageHeight = maxHeight
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = pageHeight)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
         ExpressiveCard {
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -143,6 +155,7 @@ internal fun WorkPausedCard(canPause: Boolean, enabled: Boolean, onUnpause: () -
                     }
                 }
             }
+        }
         }
     }
 }
