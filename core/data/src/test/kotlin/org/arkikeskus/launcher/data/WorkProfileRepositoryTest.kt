@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -45,6 +46,20 @@ class WorkProfileRepositoryTest {
 
     @Test fun initialSnapshotPausedIsReportedBeforeAnyBroadcast() = runTest {
         val repo = repository(FakeProfileSystem(listOf(own, work(paused = true))))
+
+        assertThat(repo.workProfile.value).isEqualTo(WorkProfile(userSerial = 10, paused = true))
+    }
+
+    @Test fun theInitialSnapshotIsReadInTheConstructorNotOnTheScope() = runTest {
+        // In the app the scope is Dispatchers.Default: a value that only arrives once the scope
+        // runs is null for the first reader (the drawer's first combine). Read it right away.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val repo = WorkProfileRepository(
+            system = FakeProfileSystem(listOf(own, work(paused = true))),
+            scope = CoroutineScope(backgroundScope.coroutineContext + dispatcher),
+            io = dispatcher,
+            transitionTimeoutMs = 5_000,
+        )
 
         assertThat(repo.workProfile.value).isEqualTo(WorkProfile(userSerial = 10, paused = true))
     }

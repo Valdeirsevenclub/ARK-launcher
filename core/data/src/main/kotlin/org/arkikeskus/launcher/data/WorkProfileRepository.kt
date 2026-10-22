@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -48,7 +48,8 @@ enum class PauseOutcome {
 
 /**
  * Turns [ProfileSystem] into one process-wide state: [workProfile] is current from the moment it is
- * first read (held eagerly, re-read on every profile broadcast), [changes] is the single shared
+ * first read (read once in the constructor, held eagerly, re-read on every profile broadcast),
+ * [changes] is the single shared
  * relay of the system's broadcasts (one receiver per process; `LauncherAppsSource` reloads on it,
  * because `LauncherApps.Callback` never reports a profile coming or going), and [setWorkPaused]
  * mirrors Launcher3's `UserProfileManager`: the request goes to the system, and a transition window
@@ -71,17 +72,23 @@ class WorkProfileRepository(
     /** Shared relay of [ProfileSystem.changes]: ONE receiver for the whole process. */
     val changes: SharedFlow<Unit> = system.changes().shareIn(scope, SharingStarted.Eagerly)
 
-    /** The platform's answer, re-read on every broadcast; a change also lifts a `canPause` veto. */
+    /** The platform's answer: read once right here (the first reader must not see a stale null
+     *  while the scope spins up), re-read on every broadcast — subscribed before that re-read, so
+     *  a broadcast in between is not lost — and a change also lifts a `canPause` veto. */
     private val platform: StateFlow<ProfileSnapshot?> = changes
+        .onSubscription { emit(Unit) }
         .onEach { flags.update { it.copy(canPause = true) } }
-        .onStart { emit(Unit) }
         .map { withContext(io) { workProfileOf(system.snapshot()) } }
-        .stateIn(scope, SharingStarted.Eagerly, initialValue = null)
+        .stateIn(scope, SharingStarted.Eagerly, initialValue = workProfileOf(system.snapshot()))
 
     /** Null while the device has no work profile. */
     val workProfile: StateFlow<WorkProfile?> = combine(platform, flags) { profile, f ->
         profile?.let { WorkProfile(it.serial, it.paused, f.canPause, f.transitioning) }
-    }.stateIn(scope, SharingStarted.Eagerly, initialValue = null)
+    }.stateIn(
+        scope,
+        SharingStarted.Eagerly,
+        initialValue = platform.value?.let { WorkProfile(it.serial, it.paused) },
+    )
 
     /**
      * Asks the system to pause ([paused] = true) or unpause the work profile. A `true` or `false`
