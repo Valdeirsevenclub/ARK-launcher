@@ -9,6 +9,7 @@
     <string name="shortcut_unavailable">Pikakuvake ei ole käytettävissä</string>
     <string name="app_info_unavailable">Sovelluksen tietoja ei voitu avata</string>
     <string name="home_full">Aloitusnäyttö on täynnä</string>
+    <string name="notice_work_apps_need_default">Aseta ARK-launcher oletuskäynnistimeksi, jotta voit keskeyttää työsovellukset.</string>
     <string name="folder_default_name">Kansio</string>
     <string name="popup_widgets">Widgetit</string>
 </resources>

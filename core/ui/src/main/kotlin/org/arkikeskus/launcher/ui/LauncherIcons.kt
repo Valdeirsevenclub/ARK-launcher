@@ -27,4 +27,5 @@ object LauncherIcons {
     @DrawableRes val LinkOff: Int = R.drawable.ic_link_off
     @DrawableRes val Home: Int = R.drawable.ic_home
     @DrawableRes val Widgets: Int = R.drawable.ic_widgets
+    @DrawableRes val Work: Int = R.drawable.ic_work
 }

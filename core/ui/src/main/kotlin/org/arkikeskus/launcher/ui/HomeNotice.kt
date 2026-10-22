@@ -10,4 +10,7 @@ import androidx.annotation.StringRes
 enum class HomeNotice(@StringRes val message: Int) {
     /** Every page the pager shows is full: nothing was added to or moved onto the home screen. */
     HomeFull(R.string.home_full),
+
+    /** Only the default launcher may pause or unpause work apps (quiet mode): nothing changed. */
+    WorkAppsNeedDefault(R.string.notice_work_apps_need_default),
 }
