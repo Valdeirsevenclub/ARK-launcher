@@ -3,6 +3,7 @@ package org.arkikeskus.launcher.feature.appdrawer
 import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -10,6 +11,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.sp
 import org.robolectric.annotation.GraphicsMode
@@ -109,6 +111,36 @@ class WorkProfileUiTest {
         compose.onNodeWithText("Pause work apps").performClick()
 
         assertThat(clicks).isEqualTo(1)
+    }
+
+    @Test
+    @Config(qualifiers = "ru-rRU-w320dp-h640dp")
+    fun workPageReservesTheMeasuredButtonHeightUnderTheGrid() {
+        // The Russian label at 200 % on a 320 dp screen makes the floating button several lines
+        // tall; a fixed 72 dp reservation left the last app row under it even when scrolled to the end.
+        var reserved: Dp = 0.dp
+        compose.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale = 2f)) {
+                ExpressiveTheme {
+                    Box(Modifier.width(320.dp).size(320.dp, 640.dp)) {
+                        WorkPage(
+                            workProfile = WorkProfileUi(paused = false, canPause = true, transitioning = false),
+                            onSetWorkPaused = {},
+                            grid = { bottomPadding ->
+                                reserved = bottomPadding
+                                Box(Modifier.fillMaxSize())
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        val buttonHeight = compose.onNodeWithText("Приостановить рабочие приложения").getBoundsInRoot().height.value
+        assertThat(buttonHeight).isGreaterThan(48f) // the premise: the label really wraps here
+        assertThat(reserved.value).isAtLeast(buttonHeight + 16f)
     }
 
     @Test fun pausedCardShowsTitleBodyAndUnpause() {

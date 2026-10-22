@@ -612,31 +612,18 @@ private fun AppDrawerContent(
                     ) { page ->
                         when (DrawerTab.entries[page]) {
                             DrawerTab.Personal -> DrawerGrid(gridState, 0.dp, idleContent)
-                            DrawerTab.Work -> Box(modifier = Modifier.fillMaxSize()) {
-                                if (workProfile.paused) {
-                                    WorkPausedCard(
-                                        canPause = workProfile.canPause,
-                                        enabled = !workProfile.transitioning,
-                                        onUnpause = { onSetWorkPaused(false) },
-                                    )
-                                } else {
-                                    // Room under the last row for the floating button.
-                                    DrawerGrid(workGridState, bottomPadding = 72.dp) {
+                            DrawerTab.Work -> WorkPage(
+                                workProfile = workProfile,
+                                onSetWorkPaused = onSetWorkPaused,
+                                // The page reserves the floating button's measured height under the last row.
+                                grid = { bottomPadding ->
+                                    DrawerGrid(workGridState, bottomPadding) {
                                         appCells(workApps, badges, badgeShowCount, badgeScale, showLabels, drawerIconSize,
                                             onAppClick, onAppLongClick, dragController, onDragOutStart, onDropOnHome,
                                             onDropOnDock, haptics, locked)
                                     }
-                                    if (workProfile.canPause) {
-                                        PauseWorkAppsButton(
-                                            enabled = !workProfile.transitioning,
-                                            onClick = { onSetWorkPaused(true) },
-                                            modifier = Modifier
-                                                .align(Alignment.BottomCenter)
-                                                .padding(bottom = 16.dp),
-                                        )
-                                    }
-                                }
-                            }
+                                },
+                            )
                         }
                     }
                 }

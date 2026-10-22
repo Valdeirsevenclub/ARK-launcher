@@ -26,15 +26,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.arkikeskus.launcher.ui.LauncherIcons
@@ -88,6 +95,51 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
     }
 }
 
+/**
+ * The Work page: the paused card, or the work [grid] with the floating pause button over it. The
+ * grid is handed the button's MEASURED height plus its margin as bottom padding, so the last row
+ * is never left under the button — a long label at a large font size makes it several lines tall.
+ */
+@Composable
+internal fun WorkPage(
+    workProfile: WorkProfileUi,
+    onSetWorkPaused: (Boolean) -> Unit,
+    grid: @Composable (bottomPadding: Dp) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        if (workProfile.paused) {
+            WorkPausedCard(
+                canPause = workProfile.canPause,
+                enabled = !workProfile.transitioning,
+                onUnpause = { onSetWorkPaused(false) },
+            )
+        } else {
+            val density = LocalDensity.current
+            var buttonHeightPx by remember { mutableIntStateOf(0) }
+            val reserved = when {
+                !workProfile.canPause -> 0.dp
+                buttonHeightPx == 0 -> PauseButtonMinHeight + PauseButtonMargin // until measured
+                else -> with(density) { buttonHeightPx.toDp() } + PauseButtonMargin
+            }
+            grid(reserved)
+            if (workProfile.canPause) {
+                PauseWorkAppsButton(
+                    enabled = !workProfile.transitioning,
+                    onClick = { onSetWorkPaused(true) },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = PauseButtonMargin)
+                        .onSizeChanged { buttonHeightPx = it.height },
+                )
+            }
+        }
+    }
+}
+
+private val PauseButtonMinHeight = 48.dp
+private val PauseButtonMargin = 16.dp
+
 /** The Work page's floating pill: pauses the work profile (quiet mode). Disabled while a request is in flight. */
 @Composable
 internal fun PauseWorkAppsButton(enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -96,7 +148,7 @@ internal fun PauseWorkAppsButton(enabled: Boolean, onClick: () -> Unit, modifier
         enabled = enabled,
         shape = RoundedCornerShape(24.dp),
         colors = accentButtonColors(),
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.heightIn(min = PauseButtonMinHeight),
     ) {
         Icon(painter = painterResource(LauncherIcons.Work), contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
