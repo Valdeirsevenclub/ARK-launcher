@@ -2,6 +2,17 @@ package org.arkikeskus.launcher.feature.appdrawer
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.sp
+import org.robolectric.annotation.GraphicsMode
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,6 +43,7 @@ import org.robolectric.annotation.Config
 
 /** The Work tab's own pieces: the Personal / Work tab row, the floating pause button, the paused card. */
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE) // real text layout: the wrapping tests measure it
 @Config(sdk = [35], application = Application::class, qualifiers = "en")
 class WorkProfileUiTest {
     @get:Rule val compose = createComposeRule()
@@ -43,6 +55,33 @@ class WorkProfileUiTest {
 
         compose.onNodeWithText("Personal").assert(hasRole(Role.Tab)).assertIsSelected()
         compose.onNodeWithText("Work").assert(hasRole(Role.Tab))
+    }
+
+    @Test
+    @Config(qualifiers = "fr-rFR-w320dp-h640dp")
+    fun tabRowGrowsWhenALabelWrapsAtALargeFontSize() {
+        // "Professionnel" at 200 % on a 320 dp screen takes two lines: a fixed 40 dp row cut the
+        // second one off. The same label on its own at the segment's width is the floor.
+        compose.setContent {
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale = 2f)) {
+                ExpressiveTheme {
+                    Column(Modifier.width(320.dp)) {
+                        DrawerTabRow(selected = DrawerTab.Personal, onSelect = {})
+                        Box(Modifier.width(148.dp).testTag("probe")) {
+                            Text("Professionnel", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+
+        val labelHeight = compose.onNodeWithTag("probe").getBoundsInRoot().height.value
+        val rowHeight = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup))
+            .getBoundsInRoot().height.value
+        assertThat(labelHeight).isGreaterThan(40f) // the premise: the label really wraps here
+        assertThat(rowHeight).isAtLeast(labelHeight)
     }
 
     @Test fun tappingWorkSelectsIt() {

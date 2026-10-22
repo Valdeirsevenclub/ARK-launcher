@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -44,7 +45,8 @@ import org.arkikeskus.launcher.ui.expressive.LocalExpressivePalette
 /**
  * Personal / Work as two equal pill segments under the search field: the selected one is filled
  * with the drawer's accent, the other sits on the search pill's surface. Each segment is a tab for
- * accessibility.
+ * accessibility. The row is 40 dp but grows with its labels: at a large font size on a narrow
+ * screen a label wraps to two lines, and a fixed height cut the second line off.
  */
 @Composable
 internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, modifier: Modifier = Modifier) {
@@ -54,7 +56,7 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .padding(bottom = 8.dp)
-            .height(40.dp)
+            .height(IntrinsicSize.Max)
             .clip(RoundedCornerShape(20.dp))
             .background(palette.surfaceHi)
             .selectableGroup(),
@@ -65,6 +67,7 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .heightIn(min = 40.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(if (isSelected) Accent else Color.Transparent)
                     .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(tab) }),
@@ -77,6 +80,8 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
                     color = if (isSelected) Color.White else palette.text,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
         }
