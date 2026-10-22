@@ -24,4 +24,10 @@
     <string name="drawer_frequent_apps">Najczęściej używane</string>
     <string name="search_clear">Wyczyść wyszukiwanie</string>
     <string name="search_no_results">Nie znaleziono wyników</string>
+    <string name="drawer_tab_personal">Osobiste</string>
+    <string name="drawer_tab_work">Służbowe</string>
+    <string name="work_apps_pause">Wstrzymaj aplikacje służbowe</string>
+    <string name="work_apps_unpause">Wznów</string>
+    <string name="work_apps_paused_title">Aplikacje służbowe są wstrzymane</string>
+    <string name="work_apps_paused_body">Aplikacje służbowe nie mogą wysyłać powiadomień, korzystać z baterii ani uzyskiwać dostępu do twojej lokalizacji.</string>
 </resources>

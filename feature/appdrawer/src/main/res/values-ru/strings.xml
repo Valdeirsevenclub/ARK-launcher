@@ -24,4 +24,10 @@
     <string name="drawer_frequent_apps">Часто используемые</string>
     <string name="search_clear">Очистить запрос</string>
     <string name="search_no_results">Ничего не найдено</string>
+    <string name="drawer_tab_personal">Личные</string>
+    <string name="drawer_tab_work">Рабочие</string>
+    <string name="work_apps_pause">Приостановить рабочие приложения</string>
+    <string name="work_apps_unpause">Возобновить</string>
+    <string name="work_apps_paused_title">Рабочие приложения приостановлены</string>
+    <string name="work_apps_paused_body">Рабочие приложения не могут отправлять уведомления, расходовать заряд батареи и получать доступ к вашему местоположению.</string>
 </resources>

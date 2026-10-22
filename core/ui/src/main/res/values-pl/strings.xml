@@ -11,4 +11,5 @@
     <string name="home_full">Ekran główny jest pełny</string>
     <string name="folder_default_name">Folder</string>
     <string name="popup_widgets">Widżety</string>
+    <string name="notice_work_apps_need_default">Ustaw ARK-launcher jako domyślny launcher, aby wstrzymać aplikacje służbowe.</string>
 </resources>

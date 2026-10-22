@@ -11,4 +11,5 @@
     <string name="home_full">Главный экран заполнен</string>
     <string name="folder_default_name">Папка</string>
     <string name="popup_widgets">Виджеты</string>
+    <string name="notice_work_apps_need_default">Сделайте ARK-launcher лаунчером по умолчанию, чтобы приостановить рабочие приложения.</string>
 </resources>

@@ -11,4 +11,5 @@
     <string name="home_full">Ana ekran dolu</string>
     <string name="folder_default_name">Klasör</string>
     <string name="popup_widgets">Widget\'lar</string>
+    <string name="notice_work_apps_need_default">İş uygulamalarını duraklatmak için ARK-launcher\'ı varsayılan başlatıcınız yapın.</string>
 </resources>

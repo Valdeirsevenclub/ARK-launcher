@@ -24,4 +24,10 @@
     <string name="drawer_frequent_apps">Mais usados</string>
     <string name="search_clear">Limpar pesquisa</string>
     <string name="search_no_results">Nenhum resultado encontrado</string>
+    <string name="drawer_tab_personal">Pessoal</string>
+    <string name="drawer_tab_work">Trabalho</string>
+    <string name="work_apps_pause">Pausar apps de trabalho</string>
+    <string name="work_apps_unpause">Reativar</string>
+    <string name="work_apps_paused_title">Os apps de trabalho estão pausados</string>
+    <string name="work_apps_paused_body">Os apps de trabalho não podem enviar notificações, usar a bateria nem acessar sua localização.</string>
 </resources>

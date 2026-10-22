@@ -11,4 +11,5 @@
     <string name="home_full">L\'écran d\'accueil est plein</string>
     <string name="folder_default_name">Dossier</string>
     <string name="popup_widgets">Widgets</string>
+    <string name="notice_work_apps_need_default">Définissez ARK-launcher comme lanceur par défaut pour mettre en pause les applis professionnelles.</string>
 </resources>

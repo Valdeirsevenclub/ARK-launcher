@@ -24,4 +24,10 @@
     <string name="drawer_frequent_apps">Meistgenutzt</string>
     <string name="search_clear">Suche löschen</string>
     <string name="search_no_results">Keine Ergebnisse gefunden</string>
+    <string name="drawer_tab_personal">Privat</string>
+    <string name="drawer_tab_work">Geschäftlich</string>
+    <string name="work_apps_pause">Geschäftliche Apps pausieren</string>
+    <string name="work_apps_unpause">Fortsetzen</string>
+    <string name="work_apps_paused_title">Geschäftliche Apps sind pausiert</string>
+    <string name="work_apps_paused_body">Geschäftliche Apps können keine Benachrichtigungen senden, den Akku nicht nutzen und nicht auf deinen Standort zugreifen.</string>
 </resources>
