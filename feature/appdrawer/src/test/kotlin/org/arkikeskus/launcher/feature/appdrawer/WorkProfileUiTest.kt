@@ -10,10 +10,6 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.text.font.FontWeight
@@ -102,29 +98,108 @@ class WorkProfileUiTest {
         assertThat(selected).isEqualTo(DrawerTab.Work)
     }
 
+    private var selected = DrawerTab.Personal
+
+    /** The tab row over a two-page pager, on a paused clock; the stored tab lands in [selected]. */
+    private fun pausedTabPager(): PagerState {
+        compose.mainClock.autoAdvance = false
+        lateinit var pagerState: PagerState
+        compose.setContent {
+            ExpressiveTheme {
+                Column {
+                    pagerState = rememberPagerState { DrawerTab.entries.size }
+                    PagerTabRow(pagerState, onSelectTab = { selected = it })
+                    HorizontalPager(pagerState, Modifier.size(320.dp, 400.dp).testTag("pager")) { Box(Modifier.fillMaxSize()) }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        return pagerState
+    }
+
+    private fun tap(tab: DrawerTab) =
+        compose.onNodeWithText(if (tab == DrawerTab.Work) "Work" else "Personal").performClick()
+
+    @Test fun aTappedTabIsHighlightedAtOnceAndStoredOnceThePagerArrives() {
+        val pagerState = pausedTabPager()
+
+        tap(DrawerTab.Work)
+        compose.mainClock.advanceTimeUntil { pagerState.currentPageOffsetFraction > 0f }
+        compose.onNodeWithText("Work").assertIsSelected() // highlighted while still travelling
+        compose.mainClock.advanceTimeBy(5_000)
+
+        assertThat(pagerState.currentPage).isEqualTo(1)
+        assertThat(selected).isEqualTo(DrawerTab.Work)
+    }
+
     @Test fun aTabTappedBackBeforeTheAnimationMidpointStillSettlesOnThatTab() {
         // Personal -> Work starts the pager animation; Personal tapped before the midpoint cancels
         // it with currentPage still Personal. The pager must travel back, not rest mid-way.
-        compose.mainClock.autoAdvance = false
-        var selected by mutableStateOf(DrawerTab.Personal)
-        lateinit var pagerState: PagerState
-        compose.setContent {
-            pagerState = rememberPagerState { DrawerTab.entries.size }
-            SyncPagerWithTab(pagerState, selected, onSelectTab = { selected = it })
-            HorizontalPager(pagerState, Modifier.size(320.dp, 400.dp)) { Box(Modifier.fillMaxSize()) }
-        }
-        compose.mainClock.advanceTimeByFrame()
+        val pagerState = pausedTabPager()
 
-        selected = DrawerTab.Work
-        Snapshot.sendApplyNotifications() // a write from the test thread reaches the composition only then
+        tap(DrawerTab.Work)
         compose.mainClock.advanceTimeUntil { pagerState.currentPageOffsetFraction > 0f }
         assertThat(pagerState.currentPage).isEqualTo(0) // the premise: cancelled before the midpoint
-        selected = DrawerTab.Personal
-        Snapshot.sendApplyNotifications()
+        tap(DrawerTab.Personal)
         compose.mainClock.advanceTimeBy(5_000)
 
         assertThat(pagerState.currentPage).isEqualTo(0)
         assertThat(pagerState.currentPageOffsetFraction).isEqualTo(0f)
+        assertThat(selected).isEqualTo(DrawerTab.Personal)
+        compose.onNodeWithText("Personal").assertIsSelected()
+    }
+
+    @Test fun aTabTappedBackAfterTheAnimationMidpointStillSettlesOnThatTab() {
+        // The cancelled animation rests for a moment on the page it had reached (Work). With the
+        // stored tab driving the pager, that rest reported Work and the pager went back over the tap.
+        val pagerState = pausedTabPager()
+
+        tap(DrawerTab.Work)
+        compose.mainClock.advanceTimeUntil { pagerState.currentPage == 1 }
+        assertThat(pagerState.isScrollInProgress).isTrue() // the premise: past the midpoint, still moving
+        tap(DrawerTab.Personal)
+        compose.mainClock.advanceTimeBy(5_000)
+
+        assertThat(pagerState.currentPage).isEqualTo(0)
+        assertThat(selected).isEqualTo(DrawerTab.Personal)
+        compose.onNodeWithText("Personal").assertIsSelected()
+    }
+
+    @Test fun aDragThatInterruptsTheAnimationAndSettlesBackMakesThatTheTabAgain() {
+        // A drag back to Personal before the midpoint ends with the settled page unchanged (0): a sync
+        // that reported only a CHANGED settled page never fired, and the row showed Work over the
+        // Personal grid, with a Work tap doing nothing.
+        val pagerState = pausedTabPager()
+
+        tap(DrawerTab.Work)
+        compose.mainClock.advanceTimeUntil { pagerState.currentPageOffsetFraction > 0f }
+        assertThat(pagerState.currentPage).isEqualTo(0) // the premise: interrupted before the midpoint
+        compose.onNodeWithTag("pager").performTouchInput {
+            down(center)
+            repeat(3) { moveBy(Offset(30f, 0f)) }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(5_000)
+
+        assertThat(pagerState.currentPage).isEqualTo(0)
+        assertThat(pagerState.currentPageOffsetFraction).isEqualTo(0f)
+        assertThat(selected).isEqualTo(DrawerTab.Personal)
+        compose.onNodeWithText("Personal").assertIsSelected()
+    }
+
+    @Test fun aSwipeToWorkStoresWorkAndHighlightsIt() {
+        val pagerState = pausedTabPager()
+
+        compose.onNodeWithTag("pager").performTouchInput {
+            down(center)
+            repeat(10) { moveBy(Offset(-25f, 0f)) }
+            up()
+        }
+        compose.mainClock.advanceTimeBy(5_000)
+
+        assertThat(pagerState.currentPage).isEqualTo(1)
+        assertThat(selected).isEqualTo(DrawerTab.Work)
+        compose.onNodeWithText("Work").assertIsSelected()
     }
 
     @Test fun pauseButtonInvokesWhenEnabledOnly() {

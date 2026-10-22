@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import org.arkikeskus.launcher.ui.LauncherIcons
 import org.arkikeskus.launcher.ui.expressive.Accent
 import org.arkikeskus.launcher.ui.expressive.ExpressiveCard
@@ -99,17 +101,27 @@ internal fun DrawerTabRow(selected: DrawerTab, onSelect: (DrawerTab) -> Unit, mo
 }
 
 /**
- * Keeps the pager and the ViewModel's tab in step: a new [selectedTab] animates the pager there,
- * and a settled page reports back through [onSelectTab]. The animation is requested without a
- * `currentPage` check on purpose: a tab tapped back before the previous animation reached its
- * midpoint cancels that animation with `currentPage` unchanged, and the pager would otherwise
- * rest mid-way until the next swipe. A pager already on the page is a no-op for the call.
+ * The tab row over the drawer's pager. While the pager is on screen it owns the tab: a tap animates
+ * the pager there and the row highlights the pager's target page at once, and every time the pager
+ * comes to rest, the page it rests on goes to [onSelectTab], which the ViewModel keeps as the stored
+ * tab (the initial page of a pager rebuilt after a search). The stored tab never drives the pager:
+ * a two-way sync raced itself. A tab tapped back late in the animation cancelled it, the momentary
+ * rest reported the page it had reached, and the pager went back there over the tap; and a drag that
+ * interrupted the animation and settled on the page it started from never reported at all, since
+ * the settled page had not changed.
  */
 @Composable
-internal fun SyncPagerWithTab(pagerState: PagerState, selectedTab: DrawerTab, onSelectTab: (DrawerTab) -> Unit) {
-    LaunchedEffect(selectedTab) { pagerState.animateScrollToPage(selectedTab.ordinal) }
+internal fun PagerTabRow(pagerState: PagerState, onSelectTab: (DrawerTab) -> Unit, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    DrawerTabRow(
+        selected = DrawerTab.entries[pagerState.targetPage],
+        onSelect = { tab -> scope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
+        modifier = modifier,
+    )
     LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.settledPage }.collect { onSelectTab(DrawerTab.entries[it]) }
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) onSelectTab(DrawerTab.entries[pagerState.currentPage])
+        }
     }
 }
 

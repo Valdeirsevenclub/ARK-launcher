@@ -588,13 +588,12 @@ private fun AppDrawerContent(
                 // No Work tab: the drawer is exactly the 0.9.1 drawer.
                 workProfile == null -> DrawerGrid(gridState, 0.dp, idleContent)
                 else -> {
-                    DrawerTabRow(selected = selectedTab, onSelect = onSelectTab)
-                    // The ViewModel owns the tab: a tap animates the pager there, a settled swipe
-                    // reports back, and the Work tab going (profile removed, last work app hidden)
-                    // lands on Personal through the same path. The pager starts on the current tab
-                    // so its first settled page is not a reset (the pager is rebuilt after a search).
+                    // The pager owns the tab while it is on screen (PagerTabRow); the ViewModel
+                    // stores the page it rests on, which is where a pager rebuilt after a search
+                    // starts, and what the Work tab going (profile removed, last work app hidden)
+                    // resets to Personal.
                     val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { DrawerTab.entries.size }
-                    SyncPagerWithTab(pagerState, selectedTab, onSelectTab)
+                    PagerTabRow(pagerState, onSelectTab)
                     HorizontalPager(
                         state = pagerState,
                         beyondViewportPageCount = 1,
