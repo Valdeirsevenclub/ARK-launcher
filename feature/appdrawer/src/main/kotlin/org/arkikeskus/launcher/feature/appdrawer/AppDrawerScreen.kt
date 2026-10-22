@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -152,12 +155,15 @@ fun AppDrawerScreen(
     // across opens. When "open at top" is on, reset it to the top as the drawer closes (invisible),
     // so the next open shows the "most used" row / A–Z start instead of the last scroll position.
     val gridState = rememberLazyGridState()
+    val workGridState = rememberLazyGridState()
     LaunchedEffect(drawerOpen, uiState.drawerOpensAtTop) {
         // Check the offset too: a short scroll leaves the first row visible (index still 0) but
         // offset > 0, and skipping the reset then would reopen the drawer slightly scrolled.
-        val scrolled = gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 0
-        if (!drawerOpen && uiState.drawerOpensAtTop && scrolled) {
-            gridState.scrollToItem(0)
+        // Both pages: the Work grid keeps its own scroll position.
+        if (!drawerOpen && uiState.drawerOpensAtTop) {
+            listOf(gridState, workGridState)
+                .filter { it.firstVisibleItemIndex > 0 || it.firstVisibleItemScrollOffset > 0 }
+                .forEach { it.scrollToItem(0) }
         }
     }
 
@@ -223,6 +229,12 @@ fun AppDrawerScreen(
         contactResults = uiState.contactResults,
         locked = uiState.desktopLocked,
         gridState = gridState,
+        workApps = uiState.workApps,
+        workProfile = uiState.workProfile,
+        selectedTab = uiState.selectedTab,
+        onSelectTab = viewModel::selectTab,
+        onSetWorkPaused = viewModel::setWorkPaused,
+        workGridState = workGridState,
         modifier = modifier,
     )
 
@@ -343,6 +355,12 @@ private fun AppDrawerContent(
     contactResults: List<SearchResult.Contact>,
     locked: Boolean,
     gridState: LazyGridState,
+    workApps: List<AppItem>,
+    workProfile: WorkProfileUi?,
+    selectedTab: DrawerTab,
+    onSelectTab: (DrawerTab) -> Unit,
+    onSetWorkPaused: (Boolean) -> Unit,
+    workGridState: LazyGridState,
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -452,16 +470,23 @@ private fun AppDrawerContent(
             } else {
                 nominalIconSize
             }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                state = gridState,
-                contentPadding = PaddingValues(vertical = 8.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp)
-                    .onSizeChanged { gridWidthPx = it.width },
-            ) {
-                if (!searching) {
+            // One grid shape for every page — the Personal page (the idle drawer as before), the
+            // Work page and the search results — so they all measure the same icon size.
+            @Composable
+            fun DrawerGrid(state: LazyGridState, bottomPadding: Dp, content: LazyGridScope.() -> Unit) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    state = state,
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + bottomPadding),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp)
+                        .onSizeChanged { gridWidthPx = it.width },
+                    content = content,
+                )
+            }
+            val idleContent: LazyGridScope.() -> Unit = {
+                run {
                     if (frequentApps.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }, contentType = { "frequent" }) {
                             FrequentAppsCard(
@@ -492,7 +517,10 @@ private fun AppDrawerContent(
                     }
                     appCells(apps, badges, badgeShowCount, badgeScale, showLabels, drawerIconSize, onAppClick,
                         onAppLongClick, dragController, onDragOutStart, onDropOnHome, onDropOnDock, haptics, locked)
-                } else {
+                }
+            }
+            val searchContent: LazyGridScope.() -> Unit = {
+                run {
                     calc?.let { c ->
                         item(span = { GridItemSpan(maxLineSpan) }, contentType = { "calc" }) {
                             val copiedMsg = stringResource(R.string.search_calc_copied)
@@ -547,6 +575,63 @@ private fun AppDrawerContent(
                                     .fillMaxWidth()
                                     .padding(vertical = 24.dp),
                             )
+                        }
+                    }
+                }
+            }
+            when {
+                searching -> DrawerGrid(gridState, 0.dp, searchContent)
+                // No Work tab: the drawer is exactly the 0.9.1 drawer.
+                workProfile == null -> DrawerGrid(gridState, 0.dp, idleContent)
+                else -> {
+                    DrawerTabRow(selected = selectedTab, onSelect = onSelectTab)
+                    // The ViewModel owns the tab: a tap animates the pager there, a settled swipe
+                    // reports back, and the Work tab going (profile removed, last work app hidden)
+                    // lands on Personal through the same path. The pager starts on the current tab
+                    // so its first settled page is not a reset (the pager is rebuilt after a search).
+                    val pagerState = rememberPagerState(initialPage = selectedTab.ordinal) { DrawerTab.entries.size }
+                    LaunchedEffect(selectedTab) {
+                        if (pagerState.currentPage != selectedTab.ordinal) {
+                            pagerState.animateScrollToPage(selectedTab.ordinal)
+                        }
+                    }
+                    LaunchedEffect(pagerState) {
+                        snapshotFlow { pagerState.settledPage }.collect { onSelectTab(DrawerTab.entries[it]) }
+                    }
+                    HorizontalPager(
+                        state = pagerState,
+                        beyondViewportPageCount = 1,
+                        // A lifted icon must never start a page swipe under the finger.
+                        userScrollEnabled = !dragController.isDragging,
+                        modifier = Modifier.fillMaxSize(),
+                    ) { page ->
+                        when (DrawerTab.entries[page]) {
+                            DrawerTab.Personal -> DrawerGrid(gridState, 0.dp, idleContent)
+                            DrawerTab.Work -> Box(modifier = Modifier.fillMaxSize()) {
+                                if (workProfile.paused) {
+                                    WorkPausedCard(
+                                        canPause = workProfile.canPause,
+                                        enabled = !workProfile.transitioning,
+                                        onUnpause = { onSetWorkPaused(false) },
+                                    )
+                                } else {
+                                    // Room under the last row for the floating button.
+                                    DrawerGrid(workGridState, bottomPadding = 72.dp) {
+                                        appCells(workApps, badges, badgeShowCount, badgeScale, showLabels, drawerIconSize,
+                                            onAppClick, onAppLongClick, dragController, onDragOutStart, onDropOnHome,
+                                            onDropOnDock, haptics, locked)
+                                    }
+                                    if (workProfile.canPause) {
+                                        PauseWorkAppsButton(
+                                            enabled = !workProfile.transitioning,
+                                            onClick = { onSetWorkPaused(true) },
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .padding(bottom = 16.dp),
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
