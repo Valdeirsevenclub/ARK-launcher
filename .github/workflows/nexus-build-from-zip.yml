@@ -1,0 +1,71 @@
+name: Compilar Nexus
+
+on:
+  push:
+    paths:
+      - '*.zip'
+      - '.github/workflows/nexus-build-from-zip.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Extrair projeto
+        run: unzip -q "nexus-2.0-source (1).zip" -d nexus-build
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar ferramentas Android
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verificar arquivos originais
+        working-directory: nexus-build/nexus-2.0
+        run: python3 scripts/restore_upstream.py
+
+      - name: Executar testes
+        working-directory: nexus-build/nexus-2.0
+        run: bash ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Verificar código Android
+        working-directory: nexus-build/nexus-2.0
+        run: bash ./gradlew lintDebug --stacktrace
+
+      - name: Compilar APK
+        working-directory: nexus-build/nexus-2.0
+        run: bash ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-APK
+          path: nexus-build/nexus-2.0/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Disponibilizar relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-relatorios
+          path: nexus-build/nexus-2.0/**/build/reports/
+          if-no-files-found: ignore
+          retention-days: 14
